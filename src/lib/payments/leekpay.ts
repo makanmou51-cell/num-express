@@ -25,44 +25,27 @@ function apiBase(): string {
   return env.payment.leekpay.baseUrl.replace(/\/+$/, "");
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 /**
- * fetch vers LeekPay avec timeout (7 s) et 1 relance sur erreur passagère
- * (502/503/504 ou coupure réseau) — reste sous la limite serverless de 10 s.
+ * fetch vers LeekPay avec un délai d'attente généreux (leur API de checkout
+ * peut être lente). Une seule tentative — l'utilisateur peut relancer.
  */
 async function leekpayFetch(
   url: string,
   opts: RequestInit,
-  retries = 1,
+  timeoutMs = 25000,
 ): Promise<Response> {
-  let lastErr: unknown;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 7000);
-    try {
-      const res = await fetch(url, {
-        ...opts,
-        signal: ctrl.signal,
-        cache: "no-store",
-      });
-      clearTimeout(timer);
-      if ([502, 503, 504].includes(res.status) && attempt < retries) {
-        lastErr = new Error(`LeekPay ${res.status}`);
-        await sleep(400);
-        continue;
-      }
-      return res;
-    } catch (e) {
-      clearTimeout(timer);
-      lastErr = e;
-      if (attempt < retries) {
-        await sleep(400);
-        continue;
-      }
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal, cache: "no-store" });
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") {
+      throw new Error("LeekPay met trop de temps à répondre. Réessayez.");
     }
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  throw lastErr instanceof Error ? lastErr : new Error("LeekPay: échec réseau");
 }
 
 /** Statut autoritatif d'un checkout (source de vérité : l'API authentifiée). */

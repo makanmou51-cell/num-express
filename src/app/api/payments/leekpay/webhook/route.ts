@@ -3,6 +3,7 @@ import { leekpayProvider } from "@/lib/payments/leekpay";
 import { confirmTopup } from "@/lib/payments";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 /** Webhook LeekPay : confirme les recharges (payment.completed / status=paid). */
 export async function POST(req: Request) {

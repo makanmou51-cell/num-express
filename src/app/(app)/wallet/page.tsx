@@ -8,6 +8,8 @@ import { formatXof } from "@/lib/pricing";
 import { TopupForm } from "./topup-form";
 
 export const metadata: Metadata = { title: "Mon solde" };
+// Laisse le temps à LeekPay (création de paiement) et à la réconciliation.
+export const maxDuration = 60;
 
 const TYPE_LABEL: Record<string, string> = {
   TOPUP: "Recharge",
