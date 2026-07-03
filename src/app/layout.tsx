@@ -19,6 +19,9 @@ export const metadata: Metadata = {
   },
   description:
     "Achetez un numéro virtuel et recevez votre code de vérification SMS en quelques secondes. Paiement Mobile Money.",
+  // Empêche la traduction auto du navigateur, qui casse React (removeChild) et
+  // rend les boutons non cliquables. L'app est déjà en français.
+  other: { google: "notranslate" },
 };
 
 export default function RootLayout({
@@ -29,8 +32,9 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
+      translate="no"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`notranslate ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
         {children}
