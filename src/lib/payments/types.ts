@@ -2,7 +2,7 @@
 export interface CreateChargeInput {
   amountXof: number;
   description: string;
-  customer: { email: string; name?: string | null };
+  customer: { email: string; name?: string | null; phone?: string | null };
   /** URL de retour après paiement. */
   callbackUrl: string;
   /** Référence interne (transaction locale). */

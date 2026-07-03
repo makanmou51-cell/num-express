@@ -38,6 +38,18 @@ export function TopupForm() {
         />
       </div>
 
+      <div>
+        <Label htmlFor="phone">Numéro Mobile Money (optionnel)</Label>
+        <Input
+          id="phone"
+          name="phone"
+          type="tel"
+          inputMode="tel"
+          placeholder="Ex : 90 00 00 00"
+          autoComplete="tel"
+        />
+      </div>
+
       <div className="flex flex-wrap gap-2">
         {PRESETS.map((p) => (
           <button

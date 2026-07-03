@@ -77,9 +77,11 @@ export async function topupAction(
     return { error: parsed.error.issues[0]?.message ?? "Montant invalide." };
   }
 
+  const phone = String(formData.get("phone") ?? "").trim() || undefined;
+
   let url: string;
   try {
-    url = (await startTopup(user, parsed.data.amount)).paymentUrl;
+    url = (await startTopup(user, parsed.data.amount, phone)).paymentUrl;
   } catch (e) {
     return {
       error: `Impossible d'initier le paiement : ${(e as Error).message}`,

@@ -1,12 +1,19 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
+import { moneyfusionProvider } from "@/lib/payments/moneyfusion";
 import { leekpayProvider } from "@/lib/payments/leekpay";
 import { fedapayProvider } from "@/lib/payments/fedapay";
 import { manualProvider } from "@/lib/payments/manual";
 import type { PaymentProvider } from "@/lib/payments/types";
 
 export function getPaymentProvider(): PaymentProvider {
+  if (
+    env.payment.provider === "moneyfusion" &&
+    env.payment.moneyfusion.apiUrl
+  ) {
+    return moneyfusionProvider;
+  }
   if (env.payment.provider === "leekpay" && env.payment.leekpay.secretKey) {
     return leekpayProvider;
   }
@@ -30,6 +37,7 @@ export function getPaymentProvider(): PaymentProvider {
 export async function startTopup(
   user: { id: string; email: string; name: string | null; balance: number },
   amountXof: number,
+  phone?: string,
 ): Promise<{ paymentUrl: string }> {
   const provider = getPaymentProvider();
 
@@ -50,7 +58,7 @@ export async function startTopup(
   const charge = await provider.createCharge({
     amountXof,
     description: `Recharge num express (${amountXof} F CFA)`,
-    customer: { email: user.email, name: user.name },
+    customer: { email: user.email, name: user.name, phone },
     callbackUrl: `${env.appUrl}/wallet?topup=retour`,
     reference: tx.id,
   });

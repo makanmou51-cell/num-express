@@ -85,7 +85,16 @@ export const env = {
 
   // ── Paiement ──
   payment: {
-    provider: str("PAYMENT_PROVIDER", "manual"), // leekpay | fedapay | manual
+    provider: str("PAYMENT_PROVIDER", "manual"), // moneyfusion | leekpay | fedapay | manual
+    moneyfusion: {
+      // URL de l'API de paiement du marchand (tableau de bord MoneyFusion).
+      apiUrl: str("MONEYFUSION_API_URL"),
+      // Base de vérification du statut par token.
+      statusUrl: str(
+        "MONEYFUSION_STATUS_URL",
+        "https://www.pay.moneyfusion.net/paiementNotif",
+      ),
+    },
     leekpay: {
       secretKey: str("LEEKPAY_SECRET_KEY"),
       publicKey: str("LEEKPAY_PUBLIC_KEY"),
