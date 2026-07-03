@@ -1,0 +1,116 @@
+// Schéma de base de données — num express
+// Revendeur de numéros virtuels (source : Grizzly SMS) avec wallet en F CFA.
+// Doc : https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  // DATABASE_URL est fournie via prisma.config.ts (Neon en dev et en prod).
+}
+
+// ───────────────────────────── Utilisateur ─────────────────────────────
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String
+  name            String?
+  role            String    @default("USER") // USER | ADMIN
+  balance         Int       @default(0) //  solde en F CFA (XOF), entier
+  emailVerifiedAt DateTime? // null = e-mail non vérifié
+  tokenVersion    Int       @default(0) // incrémenté au reset -> invalide les sessions
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Parrainage
+  referralCode String  @unique // code de parrainage de cet utilisateur
+  referredById String? // qui l'a parrainé
+  referredBy   User?   @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals    User[]  @relation("UserReferrals")
+
+  activations        Activation[]
+  transactions       Transaction[]
+  verificationTokens VerificationToken[]
+
+  @@index([referredById])
+}
+
+// Jetons à usage unique : vérification d'e-mail et réinitialisation de mot de passe.
+model VerificationToken {
+  id         String    @id @default(cuid())
+  token      String    @unique
+  type       String // EMAIL_VERIFY | PASSWORD_RESET
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// Réglages éditables par l'admin (marges, options). Surcharge les valeurs .env.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ──────────────────────────── Activation ───────────────────────────────
+// Un numéro acheté chez Grizzly pour recevoir un SMS de vérification.
+model Activation {
+  id                   String  @id @default(cuid())
+  userId               String
+  user                 User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  providerActivationId String  @unique // id d'activation renvoyé par Grizzly
+  phoneNumber          String
+  countryCode          String // code pays Grizzly (ex "0" = Russie)
+  serviceCode          String // code service (ex "wa" = WhatsApp)
+  serviceName          String?
+  countryName          String?
+
+  priceXof             Int // montant débité à l'utilisateur (F CFA)
+  costRaw              Float? // coût brut côté Grizzly (devise fournisseur), pour marge/stats
+  status               String  @default("WAITING_CODE") // WAITING_CODE | RECEIVED | COMPLETED | CANCELLED | REFUNDED | EXPIRED
+  smsCode              String?
+  smsText              String?
+  refunded             Boolean @default(false)
+
+  createdAt            DateTime  @default(now())
+  expiresAt            DateTime?
+  updatedAt            DateTime  @updatedAt
+
+  transactions         Transaction[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ──────────────────────────── Transaction ──────────────────────────────
+// Grand livre du wallet : recharges, achats, remboursements.
+model Transaction {
+  id           String  @id @default(cuid())
+  userId       String
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type         String // TOPUP | PURCHASE | REFUND | ADJUSTMENT
+  amount       Int // signé, en F CFA (+ crédit, - débit)
+  balanceAfter Int
+  status       String  @default("COMPLETED") // PENDING | COMPLETED | FAILED | CANCELLED
+  provider     String? // FEDAPAY | MANUAL | INTERNAL
+  providerRef  String? @unique // id de transaction côté prestataire de paiement
+  description  String?
+
+  activationId String?
+  activation   Activation? @relation(fields: [activationId], references: [id], onDelete: SetNull)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([providerRef])
+}

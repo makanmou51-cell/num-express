@@ -1,0 +1,113 @@
+// Accès centralisé et typé aux variables d'environnement.
+// On ne jette pas au chargement du module pour ne pas casser le build ;
+// chaque service vérifie ce dont il a besoin au moment de l'appel.
+
+function str(key: string, fallback?: string): string {
+  const v = process.env[key];
+  if (v === undefined || v === "") {
+    if (fallback !== undefined) return fallback;
+    return "";
+  }
+  return v;
+}
+
+function num(key: string, fallback: number): number {
+  const v = process.env[key];
+  if (v === undefined || v === "") return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function bool(key: string, fallback = false): boolean {
+  const v = process.env[key];
+  if (v === undefined || v === "") return fallback;
+  return ["1", "true", "yes", "on"].includes(v.toLowerCase());
+}
+
+function list(key: string): string[] {
+  return str(key)
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export const env = {
+  // ── Application ──
+  appUrl: str("APP_URL", "http://localhost:3000"),
+  authSecret: str("AUTH_SECRET"),
+  // E-mails promus automatiquement administrateurs (à la connexion/inscription).
+  adminEmails: list("ADMIN_EMAILS"),
+  // Exiger la vérification de l'e-mail avant d'acheter.
+  requireEmailVerification: bool("REQUIRE_EMAIL_VERIFICATION", false),
+  // Secret protégeant les routes cron.
+  cronSecret: str("CRON_SECRET"),
+
+  // ── Grizzly SMS ──
+  grizzly: {
+    apiKey: str("GRIZZLY_API_KEY"),
+    baseUrl: str("GRIZZLY_BASE_URL", "https://api.grizzlysms.com/stubs/handler_api.php"),
+    // Devise dans laquelle Grizzly facture le compte (pour la conversion en F CFA).
+    currency: str("GRIZZLY_CURRENCY", "USD"),
+    // Force le mode démo (données simulées) même si une clé est présente.
+    mock: bool("GRIZZLY_MOCK", false),
+  },
+
+  // ── Tarification : bénéfice fixe par tranche de coût ──
+  pricing: {
+    // Taux de conversion devise fournisseur -> F CFA (coût converti).
+    fxToXof: num("FX_TO_XOF", 620),
+    // Tranche 1 : coût < tier1MaxXof -> +tier1ProfitXof.
+    tier1MaxXof: num("TIER1_MAX_XOF", 1000),
+    tier1ProfitXof: num("TIER1_PROFIT_XOF", 4000),
+    // Tranche 2 : tier1MaxXof <= coût <= tier2MaxXof -> +tier2ProfitXof.
+    tier2MaxXof: num("TIER2_MAX_XOF", 7000),
+    tier2ProfitXof: num("TIER2_PROFIT_XOF", 4000),
+    // Tranche 3 : coût > tier2MaxXof -> +tier3ProfitXof.
+    tier3ProfitXof: num("TIER3_PROFIT_XOF", 4000),
+    // Arrondi du prix public au multiple supérieur (F CFA).
+    roundToXof: num("PRICE_ROUND_XOF", 50),
+    // Prix public minimum (F CFA).
+    minPriceXof: num("MIN_PRICE_XOF", 300),
+  },
+
+  // ── Affiliation ──
+  affiliate: {
+    // Part de chaque achat d'un filleul reversée au parrain (0..1).
+    commissionRate: num("AFFILIATE_COMMISSION_RATE", 0.1),
+  },
+
+  // ── E-mail ──
+  mail: {
+    provider: str("MAIL_PROVIDER", "log"), // log | resend
+    from: str("MAIL_FROM", "num express <no-reply@num-express.local>"),
+    resendApiKey: str("RESEND_API_KEY"),
+  },
+
+  // ── Paiement ──
+  payment: {
+    provider: str("PAYMENT_PROVIDER", "manual"), // leekpay | fedapay | manual
+    leekpay: {
+      secretKey: str("LEEKPAY_SECRET_KEY"),
+      publicKey: str("LEEKPAY_PUBLIC_KEY"),
+      // Secret DÉDIÉ pour vérifier la signature du webhook (jamais la clé publique).
+      webhookSecret: str("LEEKPAY_WEBHOOK_SECRET"),
+      baseUrl: str("LEEKPAY_BASE_URL", "https://leekpay.fr"),
+      currency: str("LEEKPAY_CURRENCY", "XOF"),
+    },
+    fedapay: {
+      secretKey: str("FEDAPAY_SECRET_KEY"),
+      environment: str("FEDAPAY_ENVIRONMENT", "sandbox"), // sandbox | live
+      webhookSecret: str("FEDAPAY_WEBHOOK_SECRET"),
+      currency: str("FEDAPAY_CURRENCY", "XOF"),
+    },
+  },
+};
+
+export function requireGrizzlyKey(): string {
+  if (!env.grizzly.apiKey) {
+    throw new Error(
+      "GRIZZLY_API_KEY manquant. Renseigne ta clé API Grizzly dans .env",
+    );
+  }
+  return env.grizzly.apiKey;
+}
