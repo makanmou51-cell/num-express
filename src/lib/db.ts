@@ -9,11 +9,9 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrisma(): PrismaClient {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error("DATABASE_URL manquant (chaîne de connexion PostgreSQL).");
-  }
-  const adapter = new PrismaPg({ connectionString });
+  // On ne jette PAS ici si DATABASE_URL est absente : la connexion est paresseuse
+  // (au 1er query). Ainsi les pages sans accès DB (ex. accueil) restent servies.
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" });
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],

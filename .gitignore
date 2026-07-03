@@ -45,3 +45,6 @@ next-env.d.ts
 # prisma / sqlite (dev)
 /prisma/*.db
 /prisma/*.db-journal
+
+.vercel
+.env*
