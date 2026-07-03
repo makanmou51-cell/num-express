@@ -25,16 +25,53 @@ function apiBase(): string {
   return env.payment.leekpay.baseUrl.replace(/\/+$/, "");
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * fetch vers LeekPay avec timeout (7 s) et 1 relance sur erreur passagère
+ * (502/503/504 ou coupure réseau) — reste sous la limite serverless de 10 s.
+ */
+async function leekpayFetch(
+  url: string,
+  opts: RequestInit,
+  retries = 1,
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 7000);
+    try {
+      const res = await fetch(url, {
+        ...opts,
+        signal: ctrl.signal,
+        cache: "no-store",
+      });
+      clearTimeout(timer);
+      if ([502, 503, 504].includes(res.status) && attempt < retries) {
+        lastErr = new Error(`LeekPay ${res.status}`);
+        await sleep(400);
+        continue;
+      }
+      return res;
+    } catch (e) {
+      clearTimeout(timer);
+      lastErr = e;
+      if (attempt < retries) {
+        await sleep(400);
+        continue;
+      }
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("LeekPay: échec réseau");
+}
+
 /** Statut autoritatif d'un checkout (source de vérité : l'API authentifiée). */
 async function fetchStatus(providerRef: string): Promise<ChargeStatus> {
   const key = env.payment.leekpay.secretKey;
   if (!key) throw new Error("LEEKPAY_SECRET_KEY manquant.");
-  const res = await fetch(
+  const res = await leekpayFetch(
     `${apiBase()}/api/v1/checkout/${encodeURIComponent(providerRef)}`,
-    {
-      headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
-      cache: "no-store",
-    },
+    { headers: { Authorization: `Bearer ${key}`, Accept: "application/json" } },
   );
   if (!res.ok) throw new Error(`LeekPay get checkout a échoué: ${res.status}`);
   const json = await res.json();
@@ -54,14 +91,13 @@ export const leekpayProvider: PaymentProvider = {
     const key = env.payment.leekpay.secretKey;
     if (!key) throw new Error("LEEKPAY_SECRET_KEY manquant.");
 
-    const res = await fetch(`${apiBase()}/api/v1/checkout`, {
+    const res = await leekpayFetch(`${apiBase()}/api/v1/checkout`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      cache: "no-store",
       body: JSON.stringify({
         amount: input.amountXof,
         currency: env.payment.leekpay.currency,
@@ -76,8 +112,14 @@ export const leekpayProvider: PaymentProvider = {
     });
 
     if (!res.ok) {
+      // Message propre : ne pas renvoyer le HTML brut d'une erreur serveur.
+      if (res.status >= 500) {
+        throw new Error(
+          "LeekPay est momentanément indisponible. Réessayez dans un instant.",
+        );
+      }
       const body = await res.text();
-      throw new Error(`LeekPay checkout a échoué: ${res.status} ${body}`);
+      throw new Error(`LeekPay checkout a échoué: ${res.status} ${body.slice(0, 200)}`);
     }
 
     const json = await res.json();
