@@ -11,7 +11,26 @@ const globalForPrisma = globalThis as unknown as {
 function createPrisma(): PrismaClient {
   // On ne jette PAS ici si DATABASE_URL est absente : la connexion est paresseuse
   // (au 1er query). Ainsi les pages sans accès DB (ex. accueil) restent servies.
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" });
+  const raw = process.env.DATABASE_URL ?? "";
+  let connectionString = raw;
+  try {
+    // On retire sslmode/channel_binding de l'URL (gérés via l'option ssl ci-dessous)
+    // pour éviter l'avertissement de dépréciation de pg-connection-string.
+    const u = new URL(raw);
+    if (u.searchParams.has("sslmode") || u.searchParams.has("channel_binding")) {
+      u.searchParams.delete("sslmode");
+      u.searchParams.delete("channel_binding");
+      connectionString = u.toString();
+    }
+  } catch {
+    /* URL non parsable : on garde la valeur d'origine */
+  }
+
+  const adapter = new PrismaPg({
+    connectionString,
+    // SSL vérifié (Neon a des certificats valides) — sécurité conservée.
+    ssl: raw ? { rejectUnauthorized: true } : undefined,
+  });
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
