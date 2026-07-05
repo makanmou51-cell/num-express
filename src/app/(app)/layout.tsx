@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { logoutAction } from "@/app/(auth)/actions";
 import { Logo } from "@/components/logo";
 import { Button, ButtonLink } from "@/components/ui";
+import { MobileNav } from "@/components/mobile-nav";
 import { formatXof } from "@/lib/pricing";
 
 const NAV = [
@@ -19,15 +20,17 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
+  const balanceLabel = formatXof(user.balance);
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b bg-white">
+      <header className="sticky top-0 z-30 border-b bg-white">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link href="/dashboard">
             <Logo />
           </Link>
 
+          {/* Navigation bureau */}
           <nav className="hidden items-center gap-1 md:flex">
             {NAV.map((item) => (
               <Link
@@ -40,14 +43,15 @@ export default async function AppLayout({
             ))}
           </nav>
 
-          <div className="flex items-center gap-2">
+          {/* Actions bureau */}
+          <div className="hidden items-center gap-2 md:flex">
             {user.role === "ADMIN" && (
               <ButtonLink href="/admin" variant="ghost" size="sm">
                 Admin
               </ButtonLink>
             )}
             <ButtonLink href="/wallet" variant="outline" size="sm">
-              {formatXof(user.balance)}
+              {balanceLabel}
             </ButtonLink>
             <form action={logoutAction}>
               <Button type="submit" variant="ghost" size="sm">
@@ -55,20 +59,20 @@ export default async function AppLayout({
               </Button>
             </form>
           </div>
-        </div>
 
-        {/* Nav mobile */}
-        <nav className="flex items-center gap-1 overflow-x-auto px-4 pb-2 md:hidden">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-gray-100"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+          {/* Mobile : solde + menu latéral */}
+          <div className="flex items-center gap-2 md:hidden">
+            <ButtonLink href="/wallet" variant="outline" size="sm">
+              {balanceLabel}
+            </ButtonLink>
+            <MobileNav
+              nav={NAV}
+              isAdmin={user.role === "ADMIN"}
+              balanceLabel={balanceLabel}
+              userName={user.name ?? "vous"}
+            />
+          </div>
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:py-8">
