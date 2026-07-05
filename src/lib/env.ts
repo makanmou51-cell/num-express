@@ -3,10 +3,11 @@
 // chaque service vérifie ce dont il a besoin au moment de l'appel.
 
 function str(key: string, fallback?: string): string {
-  const v = process.env[key];
+  // .trim() : évite qu'un espace/retour-ligne parasite (copié-collé, pipe CLI)
+  // ne casse une URL ou une clé.
+  const v = process.env[key]?.trim();
   if (v === undefined || v === "") {
-    if (fallback !== undefined) return fallback;
-    return "";
+    return fallback ?? "";
   }
   return v;
 }
