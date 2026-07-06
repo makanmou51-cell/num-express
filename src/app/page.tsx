@@ -14,6 +14,17 @@ export default async function HomePage() {
       <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3.5">
           <Logo />
+          <nav className="hidden items-center gap-6 md:flex">
+            <a href="#services" className="text-sm font-medium text-muted transition-colors hover:text-foreground">
+              Services
+            </a>
+            <a href="#tarifs" className="text-sm font-medium text-muted transition-colors hover:text-foreground">
+              Tarifs
+            </a>
+            <a href="#faq" className="text-sm font-medium text-muted transition-colors hover:text-foreground">
+              FAQ
+            </a>
+          </nav>
           <nav className="flex items-center gap-2">
             {user ? (
               <ButtonLink href="/dashboard" size="sm">
@@ -149,6 +160,55 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* ───────────── Tarifs ───────────── */}
+      <section id="tarifs" className="border-y border-border/60 bg-white">
+        <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-20">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              Tarifs simples et transparents
+            </h2>
+            <p className="mt-3 text-muted">
+              Un prix clair par numéro, affiché{" "}
+              <strong className="text-foreground">avant</strong> l'achat. Aucun
+              frais caché.
+            </p>
+          </div>
+
+          <div className="mx-auto mt-10 max-w-3xl">
+            <div className="rounded-3xl border border-primary/20 bg-primary/5 p-6 text-center sm:p-8">
+              <p className="text-sm font-medium text-primary">À partir de</p>
+              <p className="mt-1 text-5xl font-extrabold tracking-tight">
+                4 150 <span className="text-2xl font-bold">F CFA</span>
+              </p>
+              <p className="mt-2 text-sm text-muted">
+                par numéro — selon le pays et le service
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <PriceExample zone="Inde · Vietnam · Indonésie" price="dès 4 150 F CFA" />
+              <PriceExample zone="Nigéria · Kenya · Brésil" price="dès 4 400 F CFA" />
+              <PriceExample zone="USA · Europe" price="dès 5 000 F CFA" />
+            </div>
+            <p className="mt-4 text-center text-xs text-muted">
+              Prix indicatifs. Le prix exact de chaque numéro s'affiche au moment
+              de choisir.
+            </p>
+
+            <div className="mt-8 flex items-start gap-3 rounded-2xl border bg-card p-4">
+              <Icon name="refund" className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+              <p className="text-sm text-muted">
+                <strong className="text-foreground">
+                  Garantie remboursement :
+                </strong>{" "}
+                si vous ne recevez pas votre code, vous êtes remboursé
+                automatiquement. Vous ne payez que pour un code reçu.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ───────────── Pourquoi nous ───────────── */}
       <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-20">
         <div className="mx-auto max-w-2xl text-center">
@@ -177,6 +237,61 @@ export default async function HomePage() {
             title="Remboursé si échec"
             desc="Pas de code reçu ? Vous êtes remboursé automatiquement."
           />
+        </div>
+      </section>
+
+      {/* ───────────── Paiements + FAQ ───────────── */}
+      <section id="faq" className="border-t border-border/60 bg-white">
+        <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-20">
+          {/* Moyens de paiement */}
+          <div className="text-center">
+            <p className="text-sm font-medium uppercase tracking-wide text-muted">
+              Paiements acceptés
+            </p>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+              <PayChip label="Moov Money" />
+              <PayChip label="MTN Mobile Money" />
+              <PayChip label="Celtiis Cash" />
+              <PayChip label="Visa / Mastercard" />
+            </div>
+            <p className="mt-4 inline-flex items-center gap-1.5 text-sm text-muted">
+              <Icon name="shield" className="h-4 w-4 text-primary" />
+              Paiement 100 % sécurisé et chiffré
+            </p>
+          </div>
+
+          {/* FAQ */}
+          <div className="mx-auto mt-14 max-w-3xl">
+            <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
+              Questions fréquentes
+            </h2>
+            <div className="mt-8 space-y-3">
+              <Faq
+                q="Et si je ne reçois pas le code ?"
+                a="Vous êtes remboursé automatiquement. Vous ne payez que si un code est bien reçu."
+              />
+              <Faq
+                q="En combien de temps je reçois le code ?"
+                a="Généralement en quelques secondes à quelques minutes, dès que vous saisissez le numéro sur le service."
+              />
+              <Faq
+                q="Quels moyens de paiement puis-je utiliser ?"
+                a="Mobile Money (Moov, MTN, Celtiis) et cartes Visa/Mastercard, via un paiement 100 % sécurisé."
+              />
+              <Faq
+                q="Est-ce anonyme et sécurisé ?"
+                a="Oui : vous protégez votre vrai numéro et vos paiements sont chiffrés. Aucune donnée personnelle n'est partagée avec le service."
+              />
+              <Faq
+                q="Le numéro est-il réutilisable ?"
+                a="Chaque numéro sert à recevoir le code de vérification d'un service. Vous pouvez en racheter un à tout moment."
+              />
+              <Faq
+                q="Comment vous contacter ?"
+                a="Via le chat en direct en bas à droite de l'écran : notre équipe vous répond rapidement."
+              />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -267,6 +382,45 @@ function Feature({
       <h3 className="mt-4 font-semibold">{title}</h3>
       <p className="mt-1.5 text-sm text-muted">{desc}</p>
     </div>
+  );
+}
+
+function PriceExample({ zone, price }: { zone: string; price: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 text-center">
+      <p className="text-sm text-muted">{zone}</p>
+      <p className="mt-1 font-semibold text-primary">{price}</p>
+    </div>
+  );
+}
+
+function PayChip({ label }: { label: string }) {
+  return (
+    <span className="rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm">
+      {label}
+    </span>
+  );
+}
+
+function Faq({ q, a }: { q: string; a: string }) {
+  return (
+    <details className="group rounded-2xl border border-border bg-card p-4 [&_summary::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold">
+        {q}
+        <svg
+          viewBox="0 0 24 24"
+          className="h-5 w-5 shrink-0 text-muted transition-transform group-open:rotate-180"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </summary>
+      <p className="mt-3 text-sm text-muted">{a}</p>
+    </details>
   );
 }
 
