@@ -1,6 +1,7 @@
 import { grizzly, type CountryInfo } from "@/lib/grizzly/client";
 import { computePublicPriceXof } from "@/lib/pricing";
 import { getSettings } from "@/lib/settings";
+import { isoFromName } from "@/lib/grizzly/flags";
 
 /** Codes de services populaires -> libellé affiché. */
 export const SERVICE_LABELS: Record<string, string> = {
@@ -85,6 +86,7 @@ function countryLabel(info?: CountryInfo, code?: string): string {
 export interface CatalogOffer {
   countryCode: string;
   countryName: string;
+  iso: string | null; // code ISO alpha-2 pour le drapeau (peut être null)
   serviceCode: string;
   serviceName: string;
   rawCost: number; // coût brut fournisseur
@@ -126,6 +128,7 @@ export async function getCatalogForService(
     offers.push({
       countryCode,
       countryName: countryLabel(countries[countryCode], countryCode),
+      iso: isoFromName(countries[countryCode]?.eng),
       serviceCode,
       serviceName: serviceLabel(serviceCode),
       rawCost: entry.cost,
@@ -157,6 +160,7 @@ export async function getOffer(
   return {
     countryCode,
     countryName: countryLabel(countries[countryCode], countryCode),
+    iso: isoFromName(countries[countryCode]?.eng),
     serviceCode,
     serviceName: serviceLabel(serviceCode),
     rawCost: entry.cost,

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Card } from "@/components/ui";
+import { ServiceIcon } from "@/components/service-icon";
 import { FEATURED_SERVICES, serviceLabel, SERVICE_LABELS } from "@/lib/grizzly/catalog";
 
 export const metadata: Metadata = { title: "Acheter un numéro" };
@@ -48,8 +49,9 @@ export default function BuyPage() {
 function ServiceCard({ code }: { code: string }) {
   return (
     <Link href={`/buy/${code}`}>
-      <Card className="px-4 py-5 text-center font-medium transition-colors hover:border-primary">
-        {serviceLabel(code)}
+      <Card className="flex items-center gap-3 px-4 py-4 transition-all hover:-translate-y-0.5 hover:border-primary hover:shadow-md">
+        <ServiceIcon code={code} className="h-10 w-10 text-sm" />
+        <span className="font-medium">{serviceLabel(code)}</span>
       </Card>
     </Link>
   );

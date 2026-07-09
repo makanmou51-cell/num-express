@@ -10,6 +10,7 @@ import {
 import { purchaseAction } from "@/app/(app)/actions";
 import { Alert, ButtonLink, Card } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
+import { ServiceIcon } from "@/components/service-icon";
 import { formatXof } from "@/lib/pricing";
 
 type Params = { service: string };
@@ -51,7 +52,8 @@ export default async function BuyServicePage({
           <Link href="/buy" className="text-sm text-primary hover:underline">
             ← Tous les services
           </Link>
-          <h1 className="mt-1 text-2xl font-bold">
+          <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-bold">
+            <ServiceIcon code={service} className="h-9 w-9 text-sm" />
             {serviceLabel(service)} — choisissez un pays
           </h1>
         </div>
@@ -86,11 +88,28 @@ export default async function BuyServicePage({
                 key={o.countryCode}
                 className="flex items-center justify-between gap-4 px-4 py-3"
               >
-                <div>
-                  <p className="font-medium">{o.countryName}</p>
-                  <p className="text-sm text-muted">
-                    {o.count.toLocaleString("fr-FR")} disponibles
-                  </p>
+                <div className="flex min-w-0 items-center gap-3">
+                  {o.iso ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`https://flagcdn.com/w40/${o.iso}.png`}
+                      alt=""
+                      width={28}
+                      height={21}
+                      loading="lazy"
+                      className="h-5 w-7 shrink-0 rounded-sm object-cover shadow-sm ring-1 ring-black/5"
+                    />
+                  ) : (
+                    <span className="flex h-5 w-7 shrink-0 items-center justify-center rounded-sm bg-gray-100 text-xs">
+                      🌐
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{o.countryName}</p>
+                    <p className="text-sm text-muted">
+                      {o.count.toLocaleString("fr-FR")} disponibles
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="font-semibold">{formatXof(o.priceXof)}</span>

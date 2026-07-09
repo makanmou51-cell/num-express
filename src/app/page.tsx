@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { ButtonLink } from "@/components/ui";
 import { Logo } from "@/components/logo";
+import { ServiceIcon } from "@/components/service-icon";
 import { serviceLabel, FEATURED_SERVICES } from "@/lib/grizzly/catalog";
 
 export default async function HomePage() {
@@ -121,8 +122,9 @@ export default async function HomePage() {
             <Link
               key={code}
               href={user ? `/buy/${code}` : "/register"}
-              className="group rounded-2xl border border-border bg-card px-4 py-6 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:shadow-md"
+              className="group flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:shadow-md"
             >
+              <ServiceIcon code={code} className="h-10 w-10 text-sm" />
               <span className="font-semibold group-hover:text-primary">
                 {serviceLabel(code)}
               </span>
@@ -322,9 +324,63 @@ export default async function HomePage() {
 
       {/* ───────────── Pied de page ───────────── */}
       <footer className="mt-auto border-t border-border/60 bg-white">
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm text-muted sm:flex-row">
-          <Logo />
-          <p>© {new Date().getFullYear()} num express. Tous droits réservés.</p>
+        <div className="mx-auto w-full max-w-6xl px-4 py-12">
+          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Marque */}
+            <div className="lg:col-span-1">
+              <Logo />
+              <p className="mt-4 max-w-xs text-sm text-muted">
+                Numéros virtuels pour recevoir vos codes SMS (WhatsApp, Telegram,
+                Instagram…). Paiement Mobile Money, activation en secondes.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {["Moov", "MTN", "Celtiis", "Visa"].map((p) => (
+                  <span
+                    key={p}
+                    className="rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-muted"
+                  >
+                    {p}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Produit */}
+            <FooterCol title="Produit">
+              <FooterLink href="#services">Services</FooterLink>
+              <FooterLink href="#tarifs">Tarifs</FooterLink>
+              <FooterLink href="#faq">FAQ</FooterLink>
+              <FooterLink href={cta}>Acheter un numéro</FooterLink>
+            </FooterCol>
+
+            {/* Compte */}
+            <FooterCol title="Compte">
+              {user ? (
+                <FooterLink href="/dashboard">Mon espace</FooterLink>
+              ) : (
+                <>
+                  <FooterLink href="/register">Créer un compte</FooterLink>
+                  <FooterLink href="/login">Connexion</FooterLink>
+                </>
+              )}
+              <FooterLink href="/wallet">Recharger</FooterLink>
+            </FooterCol>
+
+            {/* Aide & légal */}
+            <FooterCol title="Aide & légal">
+              <FooterLink href="#faq">Centre d'aide</FooterLink>
+              <FooterLink href="#faq">Nous contacter (chat)</FooterLink>
+              <FooterLink href="/terms">Conditions d'utilisation</FooterLink>
+            </FooterCol>
+          </div>
+
+          <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border/60 pt-6 text-sm text-muted sm:flex-row">
+            <p>© {new Date().getFullYear()} num express. Tous droits réservés.</p>
+            <span className="inline-flex items-center gap-1.5">
+              <Icon name="shield" className="h-4 w-4 text-primary" />
+              Paiement 100 % sécurisé
+            </span>
+          </div>
         </div>
       </footer>
     </div>
@@ -421,6 +477,40 @@ function Faq({ q, a }: { q: string; a: string }) {
       </summary>
       <p className="mt-3 text-sm text-muted">{a}</p>
     </details>
+  );
+}
+
+function FooterCol({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      <ul className="mt-4 space-y-2.5">{children}</ul>
+    </div>
+  );
+}
+
+function FooterLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <li>
+      <Link
+        href={href}
+        className="text-sm text-muted transition-colors hover:text-primary"
+      >
+        {children}
+      </Link>
+    </li>
   );
 }
 
