@@ -66,9 +66,12 @@ export const env = {
     // Tranche 3 : coût > tier2MaxXof -> +tier3ProfitXof.
     tier3ProfitXof: num("TIER3_PROFIT_XOF", 4000),
     // Arrondi du prix public au multiple supérieur (F CFA).
-    roundToXof: num("PRICE_ROUND_XOF", 50),
+    roundToXof: num("PRICE_ROUND_XOF", 5),
     // Prix public minimum (F CFA).
     minPriceXof: num("MIN_PRICE_XOF", 300),
+    // Micro-variation déterministe par pays (F CFA) : évite que des pays au
+    // coût de gros identique affichent exactement le même prix. 0 = désactivé.
+    jitterMaxXof: num("PRICE_JITTER_XOF", 300),
   },
 
   // ── Affiliation ──

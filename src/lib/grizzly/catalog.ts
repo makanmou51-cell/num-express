@@ -133,7 +133,11 @@ export async function getCatalogForService(
       serviceName: serviceLabel(serviceCode),
       rawCost: entry.cost,
       count: entry.count,
-      priceXof: computePublicPriceXof(entry.cost, settings),
+      priceXof: computePublicPriceXof(
+        entry.cost,
+        settings,
+        `${serviceCode}:${countryCode}`,
+      ),
     });
   }
 
@@ -165,6 +169,10 @@ export async function getOffer(
     serviceName: serviceLabel(serviceCode),
     rawCost: entry.cost,
     count: entry.count,
-    priceXof: computePublicPriceXof(entry.cost, settings),
+    priceXof: computePublicPriceXof(
+      entry.cost,
+      settings,
+      `${serviceCode}:${countryCode}`,
+    ),
   };
 }

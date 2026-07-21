@@ -14,8 +14,9 @@ const FIELDS: { key: keyof AppSettings; label: string; step: string; hint: strin
   { key: "tier2MaxXof", label: "Tranche 2 — coût max (F CFA)", step: "50", hint: "Coût jusqu'à ce seuil. Ex : 7000" },
   { key: "tier2ProfitXof", label: "Tranche 2 — bénéfice (F CFA)", step: "100", hint: "Ex : 4000" },
   { key: "tier3ProfitXof", label: "Tranche 3 — bénéfice (coût au-delà)", step: "100", hint: "Coût > seuil 2. Ex : 4000" },
-  { key: "roundToXof", label: "Arrondi (F CFA)", step: "10", hint: "Ex : 50" },
+  { key: "roundToXof", label: "Arrondi (F CFA)", step: "5", hint: "Ex : 5 (fin = prix + variés)" },
   { key: "minPriceXof", label: "Prix minimum (F CFA)", step: "10", hint: "Ex : 300" },
+  { key: "jitterMaxXof", label: "Variation par pays (F CFA)", step: "10", hint: "Différencie les pays au même coût. 0 = off. Ex : 300" },
   { key: "commissionRate", label: "Commission parrainage (0–1)", step: "0.01", hint: "Ex : 0.10 = 10%" },
 ];
 

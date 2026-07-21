@@ -12,6 +12,7 @@ export interface AppSettings {
   tier3ProfitXof: number;
   roundToXof: number;
   minPriceXof: number;
+  jitterMaxXof: number; // micro-variation par pays (0 = désactivé)
   commissionRate: number; // 0..1
 }
 
@@ -24,6 +25,7 @@ export const SETTING_KEYS: (keyof AppSettings)[] = [
   "tier3ProfitXof",
   "roundToXof",
   "minPriceXof",
+  "jitterMaxXof",
   "commissionRate",
 ];
 
@@ -37,6 +39,7 @@ function defaults(): AppSettings {
     tier3ProfitXof: env.pricing.tier3ProfitXof,
     roundToXof: env.pricing.roundToXof,
     minPriceXof: env.pricing.minPriceXof,
+    jitterMaxXof: env.pricing.jitterMaxXof,
     commissionRate: env.affiliate.commissionRate,
   };
 }
@@ -67,6 +70,7 @@ export async function getSettings(): Promise<AppSettings> {
     tier3ProfitXof: pick("tier3ProfitXof"),
     roundToXof: pick("roundToXof"),
     minPriceXof: pick("minPriceXof"),
+    jitterMaxXof: pick("jitterMaxXof"),
     commissionRate: pick("commissionRate"),
   };
   cache = { at: Date.now(), data };
