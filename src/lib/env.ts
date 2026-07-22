@@ -59,12 +59,12 @@ export const env = {
     fxToXof: num("FX_TO_XOF", 620),
     // Tranche 1 : coût < tier1MaxXof -> +tier1ProfitXof.
     tier1MaxXof: num("TIER1_MAX_XOF", 1000),
-    tier1ProfitXof: num("TIER1_PROFIT_XOF", 3000),
+    tier1ProfitXof: num("TIER1_PROFIT_XOF", 2500),
     // Tranche 2 : tier1MaxXof <= coût <= tier2MaxXof -> +tier2ProfitXof.
     tier2MaxXof: num("TIER2_MAX_XOF", 7000),
-    tier2ProfitXof: num("TIER2_PROFIT_XOF", 3000),
+    tier2ProfitXof: num("TIER2_PROFIT_XOF", 2500),
     // Tranche 3 : coût > tier2MaxXof -> +tier3ProfitXof.
-    tier3ProfitXof: num("TIER3_PROFIT_XOF", 3000),
+    tier3ProfitXof: num("TIER3_PROFIT_XOF", 2500),
     // Arrondi du prix public au multiple supérieur (F CFA).
     roundToXof: num("PRICE_ROUND_XOF", 5),
     // Prix public minimum (F CFA).

@@ -180,7 +180,7 @@ export default async function HomePage() {
             <div className="rounded-3xl border border-primary/20 bg-primary/5 p-6 text-center sm:p-8">
               <p className="text-sm font-medium text-primary">À partir de</p>
               <p className="mt-1 text-5xl font-extrabold tracking-tight">
-                3 200 <span className="text-2xl font-bold">F CFA</span>
+                2 700 <span className="text-2xl font-bold">F CFA</span>
               </p>
               <p className="mt-2 text-sm text-muted">
                 par numéro — selon le pays et le service
@@ -188,9 +188,9 @@ export default async function HomePage() {
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <PriceExample zone="Vietnam · Indonésie" price="dès 3 400 F CFA" />
-              <PriceExample zone="Nigéria · Brésil" price="dès 3 750 F CFA" />
-              <PriceExample zone="USA · Europe" price="dès 4 600 F CFA" />
+              <PriceExample zone="Vietnam · Indonésie" price="dès 2 900 F CFA" />
+              <PriceExample zone="Nigéria · Brésil" price="dès 3 250 F CFA" />
+              <PriceExample zone="USA · Europe" price="dès 4 100 F CFA" />
             </div>
             <p className="mt-4 text-center text-xs text-muted">
               Prix indicatifs. Le prix exact de chaque numéro s'affiche au moment
