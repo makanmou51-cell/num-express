@@ -124,7 +124,10 @@ export async function getCatalogForService(
   const offers: CatalogOffer[] = [];
   for (const [countryCode, services] of Object.entries(prices)) {
     const entry = services[serviceCode];
-    if (!entry || entry.count <= 0 || entry.cost <= 0) continue;
+    // Fiabilité : on n'expose pas les pays au stock trop faible — ce sont ceux
+    // dont le code SMS n'arrive pas (numéros en fin de vie côté fournisseur).
+    if (!entry || entry.cost <= 0) continue;
+    if (entry.count <= 0 || entry.count < settings.minStockCount) continue;
     offers.push({
       countryCode,
       countryName: countryLabel(countries[countryCode], countryCode),

@@ -17,6 +17,8 @@ const FIELDS: { key: keyof AppSettings; label: string; step: string; hint: strin
   { key: "roundToXof", label: "Arrondi (F CFA)", step: "5", hint: "Ex : 5 (fin = prix + variés)" },
   { key: "minPriceXof", label: "Prix minimum (F CFA)", step: "10", hint: "Ex : 300" },
   { key: "jitterMaxXof", label: "Variation par pays (F CFA)", step: "10", hint: "Différencie les pays au même coût. 0 = off. Ex : 300" },
+  { key: "maxPriceBuffer", label: "Marge d'achat fournisseur (0–1)", step: "0.1", hint: "Autorise un palier + cher = codes plus fiables. Ex : 0.5 = +50%" },
+  { key: "minStockCount", label: "Stock minimum par pays", step: "100", hint: "Masque les pays peu fiables. Ex : 500" },
   { key: "commissionRate", label: "Commission parrainage (0–1)", step: "0.01", hint: "Ex : 0.10 = 10%" },
 ];
 

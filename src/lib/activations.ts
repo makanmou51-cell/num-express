@@ -1,7 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { grizzly, GrizzlyError } from "@/lib/grizzly/client";
+import { grizzly, GrizzlyError, SET_STATUS } from "@/lib/grizzly/client";
 import { getOffer } from "@/lib/grizzly/catalog";
+import { getSettings } from "@/lib/settings";
 import { applyWalletTx, InsufficientFundsError } from "@/lib/wallet";
 import { payReferralCommission } from "@/lib/affiliate";
 import type { Activation } from "@/generated/prisma/client";
@@ -46,12 +47,21 @@ export async function purchaseNumber(
   }
 
   // 3) Acheter le numéro chez Grizzly.
+  // getPrices renvoie le palier LE MOINS CHER (« from »). S'y limiter strictement
+  // force les numéros les moins fiables (stock résiduel, codes qui n'arrivent
+  // jamais) et fait échouer l'achat dès que ce palier est épuisé. On autorise
+  // donc une marge au-dessus : le surcoût éventuel est absorbé par notre marge,
+  // le client paie bien le prix affiché.
+  const settings = await getSettings();
+  const maxPrice =
+    Math.round(offer.rawCost * (1 + Math.max(0, settings.maxPriceBuffer)) * 100) /
+    100;
   let acquired: { activationId: string; phoneNumber: string };
   try {
     acquired = await grizzly.getNumber({
       service: serviceCode,
       country: countryCode,
-      maxPrice: offer.rawCost,
+      maxPrice,
     });
   } catch (e) {
     if (e instanceof GrizzlyError) {
@@ -63,6 +73,16 @@ export async function purchaseNumber(
       throw new PurchaseError("PROVIDER", e.message);
     }
     throw e;
+  }
+
+  // 3 bis) Signaler au fournisseur que le numéro est prêt à recevoir le SMS
+  // (statut 1). Sans cet appel l'activation reste en attente côté fournisseur
+  // et le code peut tarder à être acheminé. Best-effort : un échec ici ne doit
+  // pas faire perdre le numéro déjà acheté.
+  try {
+    await grizzly.setStatus(acquired.activationId, SET_STATUS.READY);
+  } catch (e) {
+    console.error("setStatus(READY) échoué:", e);
   }
 
   // 4) Débit + création de l'activation, atomiques.
@@ -235,6 +255,42 @@ export async function cancelActivation(
   }
 
   await refundActivation(activation, "CANCELLED");
+  return { ok: true };
+}
+
+/**
+ * Redemande un SMS au fournisseur (statut 3) sans racheter de numéro : utile
+ * quand le client attend et que le code tarde. Ne modifie ni le solde ni le
+ * statut local — l'activation reste en attente et le sondage continue.
+ */
+export async function requestNewCode(
+  userId: string,
+  activationId: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const activation = await prisma.activation.findFirst({
+    where: { id: activationId, userId },
+  });
+  if (!activation) return { ok: false, message: "Activation introuvable." };
+  if (activation.status !== "WAITING_CODE") {
+    return {
+      ok: false,
+      message: "Disponible uniquement tant que le code est attendu.",
+    };
+  }
+
+  try {
+    await grizzly.setStatus(activation.providerActivationId, SET_STATUS.RETRY);
+  } catch (e) {
+    // Le fournisseur refuse souvent tant que le numéro n'a pas encore servi.
+    const msg =
+      e instanceof GrizzlyError
+        ? e.message
+        : "Le fournisseur a refusé la demande.";
+    return {
+      ok: false,
+      message: `${msg} Patientez encore un peu, ou annulez pour être remboursé.`,
+    };
+  }
   return { ok: true };
 }
 

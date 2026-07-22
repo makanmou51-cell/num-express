@@ -13,6 +13,8 @@ export interface AppSettings {
   roundToXof: number;
   minPriceXof: number;
   jitterMaxXof: number; // micro-variation par pays (0 = désactivé)
+  maxPriceBuffer: number; // marge au-dessus du prix « from » à l'achat (0.5 = +50 %)
+  minStockCount: number; // stock minimum pour proposer un pays
   commissionRate: number; // 0..1
 }
 
@@ -26,6 +28,8 @@ export const SETTING_KEYS: (keyof AppSettings)[] = [
   "roundToXof",
   "minPriceXof",
   "jitterMaxXof",
+  "maxPriceBuffer",
+  "minStockCount",
   "commissionRate",
 ];
 
@@ -40,6 +44,8 @@ function defaults(): AppSettings {
     roundToXof: env.pricing.roundToXof,
     minPriceXof: env.pricing.minPriceXof,
     jitterMaxXof: env.pricing.jitterMaxXof,
+    maxPriceBuffer: env.pricing.maxPriceBuffer,
+    minStockCount: env.pricing.minStockCount,
     commissionRate: env.affiliate.commissionRate,
   };
 }
@@ -71,6 +77,8 @@ export async function getSettings(): Promise<AppSettings> {
     roundToXof: pick("roundToXof"),
     minPriceXof: pick("minPriceXof"),
     jitterMaxXof: pick("jitterMaxXof"),
+    maxPriceBuffer: pick("maxPriceBuffer"),
+    minStockCount: pick("minStockCount"),
     commissionRate: pick("commissionRate"),
   };
   cache = { at: Date.now(), data };

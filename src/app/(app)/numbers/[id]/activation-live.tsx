@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/status-badge";
 import {
   cancelActivationAction,
   deliverDemoCodeAction,
+  requestNewCodeAction,
 } from "@/app/(app)/actions";
 import type { ActionState } from "@/lib/forms";
 
@@ -54,6 +55,10 @@ export function ActivationLive({
   );
   const [deliverState, deliverAction] = useActionState<ActionState, FormData>(
     deliverDemoCodeAction,
+    undefined,
+  );
+  const [retryState, retryAction] = useActionState<ActionState, FormData>(
+    requestNewCodeAction,
     undefined,
   );
 
@@ -164,6 +169,25 @@ export function ActivationLive({
 
       {state?.error && <Alert variant="error">{state.error}</Alert>}
       {state?.success && <Alert variant="success">{state.success}</Alert>}
+
+      {retryState?.error && <Alert variant="error">{retryState.error}</Alert>}
+      {retryState?.success && (
+        <Alert variant="success">{retryState.success}</Alert>
+      )}
+
+      {/* Redemander un code (uniquement en attente) */}
+      {activation.status === "WAITING_CODE" && (
+        <form action={retryAction} className="pt-2">
+          <input type="hidden" name="id" value={activation.id} />
+          <SubmitButton variant="outline" size="sm" pendingLabel="Demande…">
+            Redemander un code
+          </SubmitButton>
+          <p className="mt-2 text-xs text-muted">
+            Le SMS tarde ? Demandez un nouveau code — c'est gratuit et vous
+            gardez le même numéro.
+          </p>
+        </form>
+      )}
 
       {/* Annulation (uniquement en attente) */}
       {activation.status === "WAITING_CODE" && (

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import {
   cancelActivation,
+  requestNewCode,
   purchaseNumber,
   PurchaseError,
 } from "@/lib/activations";
@@ -101,6 +102,22 @@ export async function cancelActivationAction(
   revalidatePath("/numbers");
   return res.ok
     ? { success: "Numéro annulé et remboursé." }
+    : { error: res.message };
+}
+
+export async function requestNewCodeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  const id = String(formData.get("id") ?? "");
+  if (!(await checkRateLimit("purchase", user.id))) {
+    return { error: "Trop de demandes. Patientez un instant." };
+  }
+  const res = await requestNewCode(user.id, id);
+  revalidatePath(`/numbers/${id}`);
+  return res.ok
+    ? { success: "Nouveau code demandé. Le SMS devrait arriver sous peu." }
     : { error: res.message };
 }
 
