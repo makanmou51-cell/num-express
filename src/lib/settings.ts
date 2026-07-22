@@ -16,6 +16,7 @@ export interface AppSettings {
   tierLevel: number; // palier de prix visé (0 = le moins cher, 1 = le plus cher)
   maxPriceBuffer: number; // tolérance de dérive au-dessus du palier visé
   minStockCount: number; // stock minimum pour proposer un pays
+  minProviderStock: number; // stock minimum pour cibler un fournisseur
   commissionRate: number; // 0..1
 }
 
@@ -32,6 +33,7 @@ export const SETTING_KEYS: (keyof AppSettings)[] = [
   "tierLevel",
   "maxPriceBuffer",
   "minStockCount",
+  "minProviderStock",
   "commissionRate",
 ];
 
@@ -49,6 +51,7 @@ function defaults(): AppSettings {
     tierLevel: env.pricing.tierLevel,
     maxPriceBuffer: env.pricing.maxPriceBuffer,
     minStockCount: env.pricing.minStockCount,
+    minProviderStock: env.pricing.minProviderStock,
     commissionRate: env.affiliate.commissionRate,
   };
 }
@@ -83,6 +86,7 @@ export async function getSettings(): Promise<AppSettings> {
     tierLevel: pick("tierLevel"),
     maxPriceBuffer: pick("maxPriceBuffer"),
     minStockCount: pick("minStockCount"),
+    minProviderStock: pick("minProviderStock"),
     commissionRate: pick("commissionRate"),
   };
   cache = { at: Date.now(), data };

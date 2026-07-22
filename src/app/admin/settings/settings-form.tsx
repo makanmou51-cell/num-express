@@ -20,6 +20,7 @@ const FIELDS: { key: keyof AppSettings; label: string; step: string; hint: strin
   { key: "tierLevel", label: "Palier fournisseur visé (0–1)", step: "0.1", hint: "1 = le plus cher (codes rapides), 0 = le moins cher. Ex : 1" },
   { key: "maxPriceBuffer", label: "Tolérance de prix (0–1)", step: "0.05", hint: "Marge de dérive au-dessus du palier. Ex : 0.05 = +5%" },
   { key: "minStockCount", label: "Stock minimum par pays", step: "100", hint: "Masque les pays peu fiables. Ex : 500" },
+  { key: "minProviderStock", label: "Stock minimum par fournisseur", step: "20", hint: "Évite de cibler un lot de 20 numéros épuisé. Ex : 100" },
   { key: "commissionRate", label: "Commission parrainage (0–1)", step: "0.01", hint: "Ex : 0.10 = 10%" },
 ];
 

@@ -82,6 +82,9 @@ export const env = {
     maxPriceBuffer: num("MAX_PRICE_BUFFER", 0.05),
     // Stock minimum pour qu'un pays soit proposé (fiabilité).
     minStockCount: num("MIN_STOCK_COUNT", 500),
+    // Stock minimum pour qu'un FOURNISSEUR soit ciblable : viser le plus cher
+    // sans ce garde-fou tombe souvent sur un lot de 20 numéros épuisé aussitôt.
+    minProviderStock: num("MIN_PROVIDER_STOCK", 100),
   },
 
   // ── Affiliation ──

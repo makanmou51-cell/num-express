@@ -58,11 +58,35 @@ export async function purchaseNumber(
     100;
   let acquired: { activationId: string; phoneNumber: string };
   try {
-    acquired = await grizzly.getNumber({
-      service: serviceCode,
-      country: countryCode,
-      maxPrice,
-    });
+    try {
+      acquired = await grizzly.getNumber({
+        service: serviceCode,
+        country: countryCode,
+        maxPrice,
+        // Fournisseur imposé : sans lui, maxPrice n'est qu'un plafond et
+        // Grizzly sert le fournisseur de son choix.
+        providerIds: offer.providerId ?? undefined,
+      });
+    } catch (e) {
+      // Le lot du fournisseur visé vient d'être épuisé : on retente sans
+      // l'imposer plutôt que de faire échouer la vente.
+      if (
+        offer.providerId &&
+        e instanceof GrizzlyError &&
+        (e.code === "NO_NUMBERS" || e.code === "WRONG_MAX_PRICE")
+      ) {
+        console.warn(
+          `Fournisseur ${offer.providerId} indisponible (${serviceCode}/${countryCode}), repli sans ciblage.`,
+        );
+        acquired = await grizzly.getNumber({
+          service: serviceCode,
+          country: countryCode,
+          maxPrice,
+        });
+      } else {
+        throw e;
+      }
+    }
   } catch (e) {
     if (e instanceof GrizzlyError) {
       // Prix changé ou stock épuisé entre la consultation et l'achat :

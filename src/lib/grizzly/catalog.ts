@@ -88,59 +88,69 @@ function countryLabel(info?: CountryInfo, code?: string): string {
 }
 
 interface Tier {
+  id: string | null; // provider_id (null = pas de détail fournisseur)
   price: number;
   count: number;
 }
 
-/** Paliers de prix d'une entrée V3, triés du moins cher au plus cher. */
+/** Paliers (fournisseurs) d'une entrée V3, triés du moins cher au plus cher. */
 function tiersFromEntry(entry: PriceV3Entry): Tier[] {
   const providers = entry.providers;
   if (providers) {
     const tiers: Tier[] = [];
-    for (const p of Object.values(providers)) {
+    for (const [key, p] of Object.entries(providers)) {
       const prices = (Array.isArray(p.price) ? p.price : [p.price])
         .map(Number)
         .filter((n) => Number.isFinite(n) && n > 0);
       const count = Number(p.count);
       if (!prices.length || !Number.isFinite(count) || count <= 0) continue;
-      tiers.push({ price: Math.max(...prices), count });
+      tiers.push({
+        id: String(p.provider_id ?? key),
+        price: Math.max(...prices),
+        count,
+      });
     }
     if (tiers.length) return tiers.sort((a, b) => a.price - b.price);
   }
-  // Pas de détail fournisseur : palier unique.
+  // Pas de détail fournisseur : palier unique, aucun ciblage possible.
   const price = Number(entry.price);
   const count = Number(entry.count);
   if (!Number.isFinite(price) || price <= 0) return [];
   if (!Number.isFinite(count) || count <= 0) return [];
-  return [{ price, count }];
+  return [{ id: null, price, count }];
 }
 
 /**
- * Choisit le palier visé. `tierLevel` 0 = le moins cher, 1 = le plus cher.
+ * Choisit le FOURNISSEUR visé (imposé ensuite via `providerIds`).
  *
- * On vise le HAUT par défaut : les fournisseurs premium délivrent le code
- * bien plus vite que le palier « from ». Comme le client est facturé sur le
- * palier choisi (et que `maxPrice` y est plafonné), la marge est garantie
- * même si Grizzly nous sert finalement un palier moins cher.
+ * `maxPrice` seul ne sert à rien : c'est un simple plafond, Grizzly choisit
+ * quand même le fournisseur qu'il veut. Il faut donc cibler explicitement.
+ *
+ * On ne retient que les fournisseurs ayant un stock réel (`minProviderStock`) :
+ * viser aveuglément le plus cher tomberait souvent sur un lot de 20 numéros
+ * épuisé aussitôt. Parmi ceux-là, `tierLevel` choisit (1 = le plus cher).
  */
 function chooseTier(
   tiers: Tier[],
   tierLevel: number,
-): { cost: number; eligible: number } | null {
+  minProviderStock: number,
+): { cost: number; count: number; providerId: string | null } | null {
   if (!tiers.length) return null;
+  const solid = tiers.filter((t) => t.count >= minProviderStock);
+  // Aucun fournisseur solide : on prend celui qui a le plus gros stock.
+  const pool = solid.length
+    ? solid
+    : [tiers.reduce((a, b) => (b.count > a.count ? b : a))];
   const lvl = Math.min(1, Math.max(0, tierLevel));
-  const cost = tiers[Math.round((tiers.length - 1) * lvl)].price;
-  // Tous les paliers <= au plafond sont mobilisables lors de l'achat.
-  const eligible = tiers
-    .filter((t) => t.price <= cost)
-    .reduce((sum, t) => sum + t.count, 0);
-  return { cost, eligible };
+  const pick = pool[Math.round((pool.length - 1) * lvl)];
+  return { cost: pick.price, count: pick.count, providerId: pick.id };
 }
 
 export interface CatalogOffer {
   countryCode: string;
   countryName: string;
   iso: string | null; // code ISO alpha-2 pour le drapeau (peut être null)
+  providerId: string | null; // fournisseur imposé à l'achat (null = au choix)
   serviceCode: string;
   serviceName: string;
   rawCost: number; // coût brut fournisseur
@@ -179,19 +189,26 @@ export async function getCatalogForService(
   for (const [countryCode, services] of Object.entries(prices)) {
     const entry = services[serviceCode];
     if (!entry) continue;
-    const chosen = chooseTier(tiersFromEntry(entry), settings.tierLevel);
-    if (!chosen) continue;
+    const tiers = tiersFromEntry(entry);
     // Fiabilité : on n'expose pas les pays au stock trop faible — ce sont ceux
     // dont le code SMS n'arrive pas (numéros en fin de vie côté fournisseur).
-    if (chosen.eligible < settings.minStockCount) continue;
+    const total = tiers.reduce((sum, t) => sum + t.count, 0);
+    if (total < settings.minStockCount) continue;
+    const chosen = chooseTier(
+      tiers,
+      settings.tierLevel,
+      settings.minProviderStock,
+    );
+    if (!chosen) continue;
     offers.push({
       countryCode,
       countryName: countryLabel(countries[countryCode], countryCode),
       iso: isoFromName(countries[countryCode]?.eng),
+      providerId: chosen.providerId,
       serviceCode,
       serviceName: serviceLabel(serviceCode),
       rawCost: chosen.cost,
-      count: chosen.eligible,
+      count: chosen.count,
       priceXof: computePublicPriceXof(
         chosen.cost,
         settings,
@@ -219,17 +236,22 @@ export async function getOffer(
   ]);
   const entry = prices[countryCode]?.[serviceCode];
   if (!entry) return null;
-  const chosen = chooseTier(tiersFromEntry(entry), settings.tierLevel);
+  const chosen = chooseTier(
+    tiersFromEntry(entry),
+    settings.tierLevel,
+    settings.minProviderStock,
+  );
   if (!chosen) return null;
 
   return {
     countryCode,
     countryName: countryLabel(countries[countryCode], countryCode),
     iso: isoFromName(countries[countryCode]?.eng),
+    providerId: chosen.providerId,
     serviceCode,
     serviceName: serviceLabel(serviceCode),
     rawCost: chosen.cost,
-    count: chosen.eligible,
+    count: chosen.count,
     priceXof: computePublicPriceXof(
       chosen.cost,
       settings,

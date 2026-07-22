@@ -279,11 +279,19 @@ const liveGrizzly = {
     service: string;
     country: string;
     maxPrice?: number;
+    /**
+     * Fournisseur(s) imposé(s) (ids séparés par des virgules). SANS ce
+     * paramètre, `maxPrice` n'est qu'un PLAFOND : Grizzly choisit lui-même le
+     * fournisseur, souvent pas le meilleur. C'est le seul moyen de cibler
+     * réellement un fournisseur premium.
+     */
+    providerIds?: string;
   }): Promise<{ activationId: string; phoneNumber: string }> {
     const text = await rawCall("getNumber", {
       service: opts.service,
       country: opts.country,
       maxPrice: opts.maxPrice,
+      providerIds: opts.providerIds,
     });
     // ACCESS_NUMBER:activationId:phoneNumber
     const m = text.match(/^ACCESS_NUMBER:([^:]+):(.+)$/);
@@ -448,7 +456,12 @@ const mockGrizzly: typeof liveGrizzly = {
     return [];
   },
 
-  async getNumber(opts: { service: string; country: string; maxPrice?: number }) {
+  async getNumber(opts: {
+    service: string;
+    country: string;
+    maxPrice?: number;
+    providerIds?: string;
+  }) {
     const activationId = `mock-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const dial = MOCK_BY_ID[opts.country]?.dial ?? "1";
     const suffix = String(Date.now()).slice(-9);
