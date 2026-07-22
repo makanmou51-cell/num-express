@@ -72,11 +72,14 @@ export const env = {
     // Micro-variation déterministe par pays (F CFA) : évite que des pays au
     // coût de gros identique affichent exactement le même prix. 0 = désactivé.
     jitterMaxXof: num("PRICE_JITTER_XOF", 300),
-    // Marge autorisée au-dessus du prix « from » lors de l'achat chez Grizzly.
-    // getPrices renvoie le palier LE MOINS CHER : s'y limiter force les numéros
-    // de mauvaise qualité (peu de stock, codes qui n'arrivent pas). 0.5 = on
-    // accepte jusqu'à +50 % pour obtenir un numéro fiable (marge absorbée).
-    maxPriceBuffer: num("MAX_PRICE_BUFFER", 0.5),
+    // Palier de prix visé chez Grizzly (getPricesV3) : 0 = le moins cher,
+    // 1 = le plus cher. Les fournisseurs premium délivrent le code beaucoup
+    // plus vite ; le client étant facturé sur le palier choisi, la marge est
+    // préservée. 1 par défaut = fiabilité maximale.
+    tierLevel: num("PRICE_TIER_LEVEL", 1),
+    // Petite tolérance au-dessus du palier visé (dérive de prix entre
+    // l'affichage et l'achat). Le palier fait déjà plafond : 5 % suffit.
+    maxPriceBuffer: num("MAX_PRICE_BUFFER", 0.05),
     // Stock minimum pour qu'un pays soit proposé (fiabilité).
     minStockCount: num("MIN_STOCK_COUNT", 500),
   },

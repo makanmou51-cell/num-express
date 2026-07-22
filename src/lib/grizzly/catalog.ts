@@ -1,4 +1,8 @@
-import { grizzly, type CountryInfo } from "@/lib/grizzly/client";
+import {
+  grizzly,
+  type CountryInfo,
+  type PriceV3Entry,
+} from "@/lib/grizzly/client";
 import { computePublicPriceXof } from "@/lib/pricing";
 import { getSettings } from "@/lib/settings";
 import { isoFromName } from "@/lib/grizzly/flags";
@@ -83,6 +87,56 @@ function countryLabel(info?: CountryInfo, code?: string): string {
   return eng ?? info?.rus ?? `Pays ${code ?? "?"}`;
 }
 
+interface Tier {
+  price: number;
+  count: number;
+}
+
+/** Paliers de prix d'une entrée V3, triés du moins cher au plus cher. */
+function tiersFromEntry(entry: PriceV3Entry): Tier[] {
+  const providers = entry.providers;
+  if (providers) {
+    const tiers: Tier[] = [];
+    for (const p of Object.values(providers)) {
+      const prices = (Array.isArray(p.price) ? p.price : [p.price])
+        .map(Number)
+        .filter((n) => Number.isFinite(n) && n > 0);
+      const count = Number(p.count);
+      if (!prices.length || !Number.isFinite(count) || count <= 0) continue;
+      tiers.push({ price: Math.max(...prices), count });
+    }
+    if (tiers.length) return tiers.sort((a, b) => a.price - b.price);
+  }
+  // Pas de détail fournisseur : palier unique.
+  const price = Number(entry.price);
+  const count = Number(entry.count);
+  if (!Number.isFinite(price) || price <= 0) return [];
+  if (!Number.isFinite(count) || count <= 0) return [];
+  return [{ price, count }];
+}
+
+/**
+ * Choisit le palier visé. `tierLevel` 0 = le moins cher, 1 = le plus cher.
+ *
+ * On vise le HAUT par défaut : les fournisseurs premium délivrent le code
+ * bien plus vite que le palier « from ». Comme le client est facturé sur le
+ * palier choisi (et que `maxPrice` y est plafonné), la marge est garantie
+ * même si Grizzly nous sert finalement un palier moins cher.
+ */
+function chooseTier(
+  tiers: Tier[],
+  tierLevel: number,
+): { cost: number; eligible: number } | null {
+  if (!tiers.length) return null;
+  const lvl = Math.min(1, Math.max(0, tierLevel));
+  const cost = tiers[Math.round((tiers.length - 1) * lvl)].price;
+  // Tous les paliers <= au plafond sont mobilisables lors de l'achat.
+  const eligible = tiers
+    .filter((t) => t.price <= cost)
+    .reduce((sum, t) => sum + t.count, 0);
+  return { cost, eligible };
+}
+
 export interface CatalogOffer {
   countryCode: string;
   countryName: string;
@@ -116,7 +170,7 @@ export async function getCatalogForService(
   serviceCode: string,
 ): Promise<CatalogOffer[]> {
   const [prices, countries, settings] = await Promise.all([
-    grizzly.getPrices({ service: serviceCode }),
+    grizzly.getPricesV3({ service: serviceCode }),
     getCountriesCached(),
     getSettings(),
   ]);
@@ -124,20 +178,22 @@ export async function getCatalogForService(
   const offers: CatalogOffer[] = [];
   for (const [countryCode, services] of Object.entries(prices)) {
     const entry = services[serviceCode];
+    if (!entry) continue;
+    const chosen = chooseTier(tiersFromEntry(entry), settings.tierLevel);
+    if (!chosen) continue;
     // Fiabilité : on n'expose pas les pays au stock trop faible — ce sont ceux
     // dont le code SMS n'arrive pas (numéros en fin de vie côté fournisseur).
-    if (!entry || entry.cost <= 0) continue;
-    if (entry.count <= 0 || entry.count < settings.minStockCount) continue;
+    if (chosen.eligible < settings.minStockCount) continue;
     offers.push({
       countryCode,
       countryName: countryLabel(countries[countryCode], countryCode),
       iso: isoFromName(countries[countryCode]?.eng),
       serviceCode,
       serviceName: serviceLabel(serviceCode),
-      rawCost: entry.cost,
-      count: entry.count,
+      rawCost: chosen.cost,
+      count: chosen.eligible,
       priceXof: computePublicPriceXof(
-        entry.cost,
+        chosen.cost,
         settings,
         `${serviceCode}:${countryCode}`,
       ),
@@ -157,12 +213,14 @@ export async function getOffer(
   countryCode: string,
 ): Promise<CatalogOffer | null> {
   const [prices, countries, settings] = await Promise.all([
-    grizzly.getPrices({ service: serviceCode, country: countryCode }),
+    grizzly.getPricesV3({ service: serviceCode, country: countryCode }),
     getCountriesCached(),
     getSettings(),
   ]);
   const entry = prices[countryCode]?.[serviceCode];
-  if (!entry || entry.count <= 0 || entry.cost <= 0) return null;
+  if (!entry) return null;
+  const chosen = chooseTier(tiersFromEntry(entry), settings.tierLevel);
+  if (!chosen) return null;
 
   return {
     countryCode,
@@ -170,10 +228,10 @@ export async function getOffer(
     iso: isoFromName(countries[countryCode]?.eng),
     serviceCode,
     serviceName: serviceLabel(serviceCode),
-    rawCost: entry.cost,
-    count: entry.count,
+    rawCost: chosen.cost,
+    count: chosen.eligible,
     priceXof: computePublicPriceXof(
-      entry.cost,
+      chosen.cost,
       settings,
       `${serviceCode}:${countryCode}`,
     ),

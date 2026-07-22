@@ -109,6 +109,25 @@ export interface PriceEntry {
 /** getPrices : { [country]: { [service]: PriceEntry } } */
 export type PricesResponse = Record<string, Record<string, PriceEntry>>;
 
+/** Un fournisseur (palier de prix) dans getPricesV3. */
+export interface ProviderTier {
+  count: number | string;
+  price: number | number[];
+  provider_id?: number;
+}
+/**
+ * getPricesV3 : comme getPrices mais avec le DÉTAIL PAR FOURNISSEUR.
+ * `price` est le prix « from » (le moins cher), `providers` liste chaque
+ * palier avec son propre stock. Certains pays n'ont pas de `providers`
+ * (palier unique). Un seul appel couvre tous les pays d'un service.
+ */
+export interface PriceV3Entry {
+  price: number;
+  count: number;
+  providers?: Record<string, ProviderTier>;
+}
+export type PricesV3Response = Record<string, Record<string, PriceV3Entry>>;
+
 export interface CountryInfo {
   id: string;
   rus?: string;
@@ -204,6 +223,19 @@ const liveGrizzly = {
       country: opts.country,
     });
     return parseJson<PricesResponse>(text);
+  },
+
+  /**
+   * Prix DÉTAILLÉS par fournisseur (paliers). Permet de viser un palier haut
+   * — les fournisseurs premium délivrent le code beaucoup plus vite que le
+   * palier « from » renvoyé par getPrices.
+   */
+  async getPricesV3(opts: { service?: string; country?: string } = {}) {
+    const text = await rawCall("getPricesV3", {
+      service: opts.service,
+      country: opts.country,
+    });
+    return parseJson<PricesV3Response>(text);
   },
 
   /** Liste des pays (id + libellés). Normalise le cas tableau en map par id. */
@@ -377,6 +409,33 @@ const mockGrizzly: typeof liveGrizzly = {
     for (const c of countries) {
       if (!MOCK_COUNTRIES[c]) continue;
       out[c] = { [service]: { cost: mockCost(c, service), count: mockCount(c, service) } };
+    }
+    return out;
+  },
+
+  async getPricesV3(opts: { service?: string; country?: string } = {}) {
+    const service = opts.service ?? "wa";
+    const countries = opts.country ? [opts.country] : Object.keys(MOCK_COUNTRIES);
+    const out: PricesV3Response = {};
+    for (const c of countries) {
+      if (!MOCK_COUNTRIES[c]) continue;
+      const cost = mockCost(c, service);
+      const count = mockCount(c, service);
+      // Deux paliers simulés pour refléter la structure réelle.
+      out[c] = {
+        [service]: {
+          price: cost,
+          count,
+          providers: {
+            "1": { count, price: [cost], provider_id: 1 },
+            "2": {
+              count: Math.max(20, Math.round(count / 4)),
+              price: [Math.round(cost * 2 * 100) / 100],
+              provider_id: 2,
+            },
+          },
+        },
+      };
     }
     return out;
   },
