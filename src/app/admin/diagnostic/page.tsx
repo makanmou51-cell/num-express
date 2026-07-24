@@ -6,6 +6,7 @@ import { getSettings } from "@/lib/settings";
 import { Alert, Badge, Card } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
 import { inspectOnlineSim, inspectCatalogStrategies } from "@/lib/onlinesim/probe";
+import { usingOnlineSim } from "@/lib/grizzly/catalog";
 
 export const metadata: Metadata = { title: "Admin — Diagnostic Grizzly" };
 export const dynamic = "force-dynamic";
@@ -44,21 +45,27 @@ export default async function GrizzlyDiagnosticPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Diagnostic Grizzly</h1>
+        <h1 className="text-2xl font-bold">Diagnostic fournisseur</h1>
         <p className="text-muted">
-          Vérification en direct de la connexion à l'API fournisseur.
+          Vérification en direct de la connexion aux API fournisseurs.
         </p>
       </div>
 
-      {isGrizzlyMock ? (
+      <Alert variant={usingOnlineSim ? "info" : "success"}>
+        <strong>
+          Fournisseur ACTIF : {usingOnlineSim ? "OnlineSim" : "Grizzly SMS"}
+        </strong>{" "}
+        — c'est lui qui délivre les numéros vendus sur le site.{" "}
+        {usingOnlineSim
+          ? "Grizzly reste connecté ci-dessous, mais n'est plus utilisé."
+          : `Connecté à ${env.grizzly.baseUrl}`}
+      </Alert>
+
+      {isGrizzlyMock && (
         <Alert variant="info">
-          <strong>Mode démo</strong> — aucune clé <code>GRIZZLY_API_KEY</code>{" "}
-          configurée : les données ci-dessous sont simulées. Renseignez votre
-          clé dans <code>.env</code> pour passer en réel.
-        </Alert>
-      ) : (
-        <Alert variant="success">
-          Mode réel — connecté à <code>{env.grizzly.baseUrl}</code>
+          <strong>Mode démo Grizzly</strong> — aucune clé{" "}
+          <code>GRIZZLY_API_KEY</code> configurée : les données Grizzly
+          ci-dessous sont simulées.
         </Alert>
       )}
 
@@ -98,7 +105,7 @@ export default async function GrizzlyDiagnosticPage() {
           }
         />
         <CheckCard
-          title="getPrices (WhatsApp)"
+          title={`Catalogue WhatsApp (${usingOnlineSim ? "OnlineSim" : "Grizzly"})`}
           ok={catalog.ok}
           detail={
             catalog.ok ? `${catalog.value.length} pays dispo` : catalog.error

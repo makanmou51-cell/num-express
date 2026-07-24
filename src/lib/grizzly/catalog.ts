@@ -197,7 +197,8 @@ async function onlineSimCatalog(
   const out: CatalogOffer[] = [];
   for (const o of offers) {
     if (o.cost <= 0) continue;
-    if (o.count > 0 && o.count < settings.minStockCount) continue;
+    // count = 0 -> pays annoncé mais sans numéro : inachetable, on le masque.
+    if (o.count <= 0 || o.count < settings.minStockCount) continue;
     out.push({
       countryCode: o.countryCode,
       countryName: COUNTRY_FR[o.countryEng] ?? o.countryEng,
