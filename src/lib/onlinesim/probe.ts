@@ -114,6 +114,9 @@ export interface StrategyResult {
   hasWhatsapp: boolean;
   hasPrice: boolean;
   snippet: string;
+  /** Texte brut autour de la 1re occurrence de "whatsapp" : révèle où sont
+   *  réellement rangés les prix dans la réponse. */
+  whatsappContext: string;
   error?: string;
 }
 
@@ -149,8 +152,16 @@ export async function inspectCatalogStrategies(): Promise<StrategyResult[]> {
         hasWhatsapp: /whatsapp/i.test(r.text),
         hasPrice: /"price"/.test(r.text),
         snippet: "",
+        whatsappContext: "",
         error: r.error,
       };
+      const at = r.text.toLowerCase().indexOf("whatsapp");
+      if (at >= 0) {
+        base.whatsappContext = r.text.slice(
+          Math.max(0, at - 300),
+          Math.min(r.text.length, at + 400),
+        );
+      }
       try {
         const j = JSON.parse(r.text) as Record<string, unknown>;
         base.topKeys = Object.keys(j).slice(0, 8);

@@ -217,9 +217,24 @@ export default async function GrizzlyDiagnosticPage() {
                     {s.hasPrice ? "oui" : "non"}
                   </span>
                 </div>
+                {s.topKeys.length > 0 && (
+                  <p className="mt-1 text-xs text-muted">
+                    clés racine : <code>{s.topKeys.join(", ")}</code>
+                  </p>
+                )}
                 <pre className="mt-1 max-h-52 overflow-auto rounded-lg bg-gray-900 p-3 text-xs whitespace-pre-wrap break-all text-gray-100">
                   {s.error ? `ERREUR : ${s.error}` : s.snippet}
                 </pre>
+                {s.whatsappContext && (
+                  <>
+                    <p className="mt-2 text-xs font-medium">
+                      ⬇ Texte brut autour de « whatsapp » (où sont les prix)
+                    </p>
+                    <pre className="mt-1 max-h-52 overflow-auto rounded-lg bg-emerald-950 p-3 text-xs whitespace-pre-wrap break-all text-emerald-100">
+                      {s.whatsappContext}
+                    </pre>
+                  </>
+                )}
               </div>
             ))}
           </div>
