@@ -1,8 +1,13 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { grizzly, GrizzlyError, SET_STATUS } from "@/lib/grizzly/client";
-import { getOffer } from "@/lib/grizzly/catalog";
+import { getOffer, usingOnlineSim } from "@/lib/grizzly/catalog";
 import { getSettings } from "@/lib/settings";
+import {
+  onlinesim,
+  OnlineSimError,
+  ONLINESIM_SERVICE_SLUG,
+} from "@/lib/onlinesim/client";
 import { applyWalletTx, InsufficientFundsError } from "@/lib/wallet";
 import { payReferralCommission } from "@/lib/affiliate";
 import type { Activation } from "@/generated/prisma/client";
@@ -16,6 +21,32 @@ export class PurchaseError extends Error {
     this.name = "PurchaseError";
     this.code = code;
   }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Achat OnlineSim : getNum ne renvoie qu'un `tzid` ; le numéro lui-même
+ * n'apparaît qu'ensuite via getState. On sonde brièvement pour le récupérer.
+ */
+async function buyFromOnlineSim(
+  serviceCode: string,
+  countryCode: string,
+): Promise<{ activationId: string; phoneNumber: string }> {
+  const slug = ONLINESIM_SERVICE_SLUG[serviceCode] ?? serviceCode;
+  const { tzid } = await onlinesim.getNum(slug, countryCode);
+
+  for (let i = 0; i < 5; i++) {
+    try {
+      const st = await onlinesim.getState(tzid);
+      if (st.phoneNumber) return { activationId: tzid, phoneNumber: st.phoneNumber };
+    } catch {
+      /* transitoire : on retente */
+    }
+    await sleep(800);
+  }
+  // Numéro pas encore visible : on garde l'opération, le polling le remplira.
+  return { activationId: tzid, phoneNumber: "" };
 }
 
 /** Achète un numéro et débite l'utilisateur (atomique). */
@@ -58,17 +89,28 @@ export async function purchaseNumber(
     100;
   let acquired: { activationId: string; phoneNumber: string };
   try {
-    // Fiabilité d'abord : on IMPOSE le fournisseur premium choisi. PAS de repli
-    // vers un fournisseur bon marché — il délivre mal tout en étant facturé au
-    // prix premium (le pire des cas). Si son lot est épuisé, l'achat échoue
-    // proprement (UNAVAILABLE) et le client ne paie rien.
-    acquired = await grizzly.getNumber({
-      service: serviceCode,
-      country: countryCode,
-      maxPrice,
-      providerIds: offer.providerId ?? undefined,
-    });
+    if (usingOnlineSim) {
+      acquired = await buyFromOnlineSim(serviceCode, countryCode);
+    } else {
+      // Fiabilité d'abord : on IMPOSE le fournisseur premium choisi. PAS de repli
+      // vers un fournisseur bon marché — il délivre mal tout en étant facturé au
+      // prix premium (le pire des cas). Si son lot est épuisé, l'achat échoue
+      // proprement (UNAVAILABLE) et le client ne paie rien.
+      acquired = await grizzly.getNumber({
+        service: serviceCode,
+        country: countryCode,
+        maxPrice,
+        providerIds: offer.providerId ?? undefined,
+      });
+    }
   } catch (e) {
+    if (e instanceof OnlineSimError) {
+      const unavailable = ["NO_NUMBER", "NO_NUMBERS", "NO_COUNTRY", "NO_SERVICE"];
+      throw new PurchaseError(
+        unavailable.includes(e.code) ? "UNAVAILABLE" : "PROVIDER",
+        e.message,
+      );
+    }
     if (e instanceof GrizzlyError) {
       // Prix changé ou stock épuisé entre la consultation et l'achat :
       // c'est une « offre indisponible », pas une panne fournisseur.
@@ -185,6 +227,36 @@ export async function refreshActivation(
     return activation;
   }
 
+  // ── OnlineSim : getState porte à la fois le numéro et le code ──
+  if (usingOnlineSim) {
+    try {
+      const st = await onlinesim.getState(activation.providerActivationId);
+      // Le numéro peut n'arriver qu'après l'achat : on le complète.
+      if (st.phoneNumber && !activation.phoneNumber) {
+        await prisma.activation.update({
+          where: { id: activation.id },
+          data: { phoneNumber: st.phoneNumber },
+        });
+      }
+      if (st.code) {
+        const updated = await prisma.activation.update({
+          where: { id: activation.id },
+          data: { status: "RECEIVED", smsCode: st.code },
+        });
+        onlinesim.finish(activation.providerActivationId).catch(() => {});
+        payReferralCommission(
+          activation.userId,
+          activation.id,
+          activation.priceXof,
+        ).catch(() => {});
+        return updated;
+      }
+    } catch {
+      /* erreur transitoire : on réessaiera au prochain poll */
+    }
+    return prisma.activation.findUnique({ where: { id: activation.id } });
+  }
+
   let status;
   try {
     status = await grizzly.getStatus(activation.providerActivationId);
@@ -247,6 +319,16 @@ export async function cancelActivation(
     return { ok: false, message: "Cette activation ne peut plus être annulée." };
   }
 
+  if (usingOnlineSim) {
+    try {
+      await onlinesim.cancel(activation.providerActivationId);
+    } catch {
+      /* on rembourse quand même : le fournisseur ne facture pas sans SMS */
+    }
+    await refundActivation(activation, "CANCELLED");
+    return { ok: true };
+  }
+
   try {
     await grizzly.cancel(activation.providerActivationId);
   } catch (e) {
@@ -284,6 +366,10 @@ export async function requestNewCode(
   }
 
   try {
+    if (usingOnlineSim) {
+      await onlinesim.requestNewCode(activation.providerActivationId);
+      return { ok: true };
+    }
     await grizzly.setStatus(activation.providerActivationId, SET_STATUS.RETRY);
   } catch (e) {
     // Le fournisseur refuse souvent tant que le numéro n'a pas encore servi.

@@ -53,6 +53,10 @@ export const env = {
     mock: bool("GRIZZLY_MOCK", false),
   },
 
+  // Fournisseur de numéros actif : grizzly | onlinesim.
+  // Bascule à chaud (variable d'env) pour comparer sans réécrire de code.
+  smsProvider: str("SMS_PROVIDER", "grizzly").toLowerCase(),
+
   // ── OnlineSim (fournisseur alternatif, en évaluation) ──
   onlinesim: {
     apiKey: str("ONLINESIM_API_KEY"),

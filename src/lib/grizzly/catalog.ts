@@ -6,6 +6,12 @@ import {
 import { computePublicPriceXof } from "@/lib/pricing";
 import { getSettings } from "@/lib/settings";
 import { isoFromName } from "@/lib/grizzly/flags";
+import { env } from "@/lib/env";
+import { ONLINESIM_SERVICE_SLUG } from "@/lib/onlinesim/client";
+import {
+  getOnlineSimOffers,
+  getOnlineSimOffer,
+} from "@/lib/onlinesim/catalog";
 
 /** Codes de services populaires -> libellé affiché. */
 export const SERVICE_LABELS: Record<string, string> = {
@@ -176,9 +182,46 @@ async function getCountriesCached(): Promise<Record<string, CountryInfo>> {
  * Catalogue des pays disponibles pour un service donné, prix public calculé,
  * trié par prix croissant. Seules les offres avec au moins 1 numéro sont gardées.
  */
+export const usingOnlineSim = env.smsProvider === "onlinesim";
+
+/** Catalogue via OnlineSim (pas de paliers fournisseur chez eux). */
+async function onlineSimCatalog(
+  serviceCode: string,
+): Promise<CatalogOffer[]> {
+  const slug = ONLINESIM_SERVICE_SLUG[serviceCode] ?? serviceCode;
+  const [offers, settings] = await Promise.all([
+    getOnlineSimOffers(slug),
+    getSettings(),
+  ]);
+
+  const out: CatalogOffer[] = [];
+  for (const o of offers) {
+    if (o.cost <= 0) continue;
+    if (o.count > 0 && o.count < settings.minStockCount) continue;
+    out.push({
+      countryCode: o.countryCode,
+      countryName: COUNTRY_FR[o.countryEng] ?? o.countryEng,
+      iso: isoFromName(o.countryEng),
+      providerId: null,
+      serviceCode,
+      serviceName: serviceLabel(serviceCode),
+      rawCost: o.cost,
+      count: o.count,
+      priceXof: computePublicPriceXof(
+        o.cost,
+        settings,
+        `${serviceCode}:${o.countryCode}`,
+      ),
+    });
+  }
+  out.sort((a, b) => a.priceXof - b.priceXof);
+  return out;
+}
+
 export async function getCatalogForService(
   serviceCode: string,
 ): Promise<CatalogOffer[]> {
+  if (usingOnlineSim) return onlineSimCatalog(serviceCode);
   const [prices, countries, settings] = await Promise.all([
     grizzly.getPricesV3({ service: serviceCode }),
     getCountriesCached(),
@@ -229,6 +272,29 @@ export async function getOffer(
   serviceCode: string,
   countryCode: string,
 ): Promise<CatalogOffer | null> {
+  if (usingOnlineSim) {
+    const slug = ONLINESIM_SERVICE_SLUG[serviceCode] ?? serviceCode;
+    const [o, settings] = await Promise.all([
+      getOnlineSimOffer(slug, countryCode),
+      getSettings(),
+    ]);
+    if (!o || o.cost <= 0) return null;
+    return {
+      countryCode,
+      countryName: COUNTRY_FR[o.countryEng] ?? o.countryEng,
+      iso: isoFromName(o.countryEng),
+      providerId: null,
+      serviceCode,
+      serviceName: serviceLabel(serviceCode),
+      rawCost: o.cost,
+      count: o.count,
+      priceXof: computePublicPriceXof(
+        o.cost,
+        settings,
+        `${serviceCode}:${countryCode}`,
+      ),
+    };
+  }
   const [prices, countries, settings] = await Promise.all([
     grizzly.getPricesV3({ service: serviceCode, country: countryCode }),
     getCountriesCached(),
