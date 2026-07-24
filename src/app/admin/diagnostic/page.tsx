@@ -5,7 +5,7 @@ import { getCatalogForService } from "@/lib/grizzly/catalog";
 import { getSettings } from "@/lib/settings";
 import { Alert, Badge, Card } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
-import { inspectOnlineSim } from "@/lib/onlinesim/probe";
+import { inspectOnlineSim, inspectCatalogStrategies } from "@/lib/onlinesim/probe";
 
 export const metadata: Metadata = { title: "Admin — Diagnostic Grizzly" };
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ async function safe<T>(fn: () => Promise<T>): Promise<
 }
 
 export default async function GrizzlyDiagnosticPage() {
-  const [settings, balance, countries, catalog, active, os] =
+  const [settings, balance, countries, catalog, active, os, strategies] =
     await Promise.all([
       getSettings(),
       safe(() => grizzly.getBalance()),
@@ -29,6 +29,7 @@ export default async function GrizzlyDiagnosticPage() {
       safe(() => getCatalogForService("wa")),
       safe(() => grizzly.getActiveActivations()),
       safe(() => inspectOnlineSim(49)),
+      safe(() => inspectCatalogStrategies()),
     ]);
 
   const firstCountryRaw =
@@ -188,6 +189,39 @@ export default async function GrizzlyDiagnosticPage() {
                 ))}
               </Alert>
             )}
+          </div>
+        )}
+      </Card>
+
+      {/* Quelle requête permet de bâtir le catalogue en 1 appel ? */}
+      <Card className="p-5">
+        <h2 className="mb-1 font-semibold">
+          OnlineSim — stratégie catalogue (tous les pays en 1 appel ?)
+        </h2>
+        <p className="mb-3 text-xs text-muted">
+          On cherche la variante qui renvoie tous les pays d'un service avec
+          leur prix. Idéal : beaucoup d'entrées + « prix: oui ».
+        </p>
+        {!strategies.ok ? (
+          <Alert variant="error">{strategies.error}</Alert>
+        ) : (
+          <div className="space-y-4">
+            {strategies.value.map((s) => (
+              <div key={s.label}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <code className="text-sm">{s.label}</code>
+                  <span className="text-xs text-muted">
+                    HTTP {s.status ?? "—"} · {s.bytes} octets ·{" "}
+                    <strong>{s.entryCount ?? 0} entrées</strong> · whatsapp:{" "}
+                    {s.hasWhatsapp ? "oui" : "non"} · prix:{" "}
+                    {s.hasPrice ? "oui" : "non"}
+                  </span>
+                </div>
+                <pre className="mt-1 max-h-52 overflow-auto rounded-lg bg-gray-900 p-3 text-xs whitespace-pre-wrap break-all text-gray-100">
+                  {s.error ? `ERREUR : ${s.error}` : s.snippet}
+                </pre>
+              </div>
+            ))}
           </div>
         )}
       </Card>

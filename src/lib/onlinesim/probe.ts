@@ -100,6 +100,79 @@ export async function probeOnlineSim(
   };
 }
 
+/**
+ * getNumbersStats ne renvoie les prix que pour UN pays. Pour bâtir le
+ * catalogue il faut tous les pays d'un service en un appel — on teste ici
+ * les variantes possibles pour trouver laquelle le permet.
+ */
+export interface StrategyResult {
+  label: string;
+  status: number | null;
+  bytes: number;
+  topKeys: string[];
+  entryCount: number | null;
+  hasWhatsapp: boolean;
+  hasPrice: boolean;
+  snippet: string;
+  error?: string;
+}
+
+export async function inspectCatalogStrategies(): Promise<StrategyResult[]> {
+  const variants: {
+    label: string;
+    action: string;
+    params: Record<string, string | number>;
+  }[] = [
+    {
+      label: "getNumbersStats?service=whatsapp",
+      action: "getNumbersStats",
+      params: { service: "whatsapp" },
+    },
+    { label: "getNumbersStats (sans param)", action: "getNumbersStats", params: {} },
+    {
+      label: "getTariffs?service=whatsapp",
+      action: "getTariffs",
+      params: { service: "whatsapp" },
+    },
+    { label: "getTariffs?country=49", action: "getTariffs", params: { country: 49 } },
+  ];
+
+  return Promise.all(
+    variants.map(async (v) => {
+      const r = await fetchOnlineSim(v.action, v.params);
+      const base: StrategyResult = {
+        label: v.label,
+        status: r.status,
+        bytes: r.text.length,
+        topKeys: [],
+        entryCount: null,
+        hasWhatsapp: /whatsapp/i.test(r.text),
+        hasPrice: /"price"/.test(r.text),
+        snippet: "",
+        error: r.error,
+      };
+      try {
+        const j = JSON.parse(r.text) as Record<string, unknown>;
+        base.topKeys = Object.keys(j).slice(0, 8);
+        // La charge utile est soit à la racine, soit sous "countries".
+        const holder =
+          (j.countries as Record<string, unknown> | undefined) ??
+          (j as Record<string, unknown>);
+        const keys = Object.keys(holder).filter((k) => k.startsWith("_"));
+        if (keys.length) {
+          base.entryCount = keys.length;
+          base.snippet = `"${keys[0]}": ${pretty(holder[keys[0]])}`;
+        } else {
+          base.snippet = pretty(j);
+        }
+      } catch {
+        base.snippet = r.text.slice(0, 400);
+      }
+      return base;
+    }),
+  );
+}
+
 /** Ce qu'on cherche à savoir pour écrire le client. */
 export interface OnlineSimInspect {
   balance: string;
