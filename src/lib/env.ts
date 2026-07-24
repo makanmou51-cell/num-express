@@ -42,6 +42,10 @@ export const env = {
   requireEmailVerification: bool("REQUIRE_EMAIL_VERIFICATION", false),
   // Secret protégeant les routes cron.
   cronSecret: str("CRON_SECRET"),
+  // Durée de validité d'une activation (min). 0 = auto selon le fournisseur :
+  // elle DOIT coller à celle du fournisseur, sinon le client attend un numéro
+  // déjà libéré. OnlineSim = 15 min, Grizzly = 20 min.
+  activationTtlMin: num("ACTIVATION_TTL_MIN", 0),
 
   // ── Grizzly SMS ──
   grizzly: {

@@ -8,11 +8,15 @@ import {
   OnlineSimError,
   ONLINESIM_SERVICE_SLUG,
 } from "@/lib/onlinesim/client";
+import { env } from "@/lib/env";
 import { applyWalletTx, InsufficientFundsError } from "@/lib/wallet";
 import { payReferralCommission } from "@/lib/affiliate";
 import type { Activation } from "@/generated/prisma/client";
 
-const ACTIVATION_TTL_MIN = 20;
+// Doit refléter le délai RÉEL du fournisseur actif : afficher plus long
+// ferait patienter le client sur un numéro déjà libéré côté fournisseur.
+const ACTIVATION_TTL_MIN =
+  env.activationTtlMin > 0 ? env.activationTtlMin : usingOnlineSim ? 15 : 20;
 
 export class PurchaseError extends Error {
   code: "UNAVAILABLE" | "PROVIDER" | "FUNDS";
