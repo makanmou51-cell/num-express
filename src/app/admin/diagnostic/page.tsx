@@ -5,6 +5,7 @@ import { getCatalogForService } from "@/lib/grizzly/catalog";
 import { getSettings } from "@/lib/settings";
 import { Alert, Badge, Card } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
+import { probeOnlineSim } from "@/lib/onlinesim/probe";
 
 export const metadata: Metadata = { title: "Admin — Diagnostic Grizzly" };
 export const dynamic = "force-dynamic";
@@ -20,13 +21,19 @@ async function safe<T>(fn: () => Promise<T>): Promise<
 }
 
 export default async function GrizzlyDiagnosticPage() {
-  const [settings, balance, countries, catalog, active] = await Promise.all([
-    getSettings(),
-    safe(() => grizzly.getBalance()),
-    safe(() => grizzly.getCountries()),
-    safe(() => getCatalogForService("wa")),
-    safe(() => grizzly.getActiveActivations()),
-  ]);
+  const [settings, balance, countries, catalog, active, osProbes] =
+    await Promise.all([
+      getSettings(),
+      safe(() => grizzly.getBalance()),
+      safe(() => grizzly.getCountries()),
+      safe(() => getCatalogForService("wa")),
+      safe(() => grizzly.getActiveActivations()),
+      Promise.all([
+        probeOnlineSim("getBalance"),
+        probeOnlineSim("getTariffs"),
+        probeOnlineSim("getNumbersStats", { country: 49 }),
+      ]),
+    ]);
 
   const firstCountryRaw =
     countries.ok && Object.keys(countries.value).length
@@ -139,6 +146,36 @@ export default async function GrizzlyDiagnosticPage() {
           )}
         </Card>
       )}
+
+      {/* Sonde OnlineSim — vérifie que l'IP Vercel n'est pas bloquée */}
+      <Card className="p-5">
+        <h2 className="mb-1 font-semibold">
+          Sonde OnlineSim (depuis le serveur Vercel)
+        </h2>
+        <p className="mb-3 text-xs text-muted">
+          Appels en lecture seule — n'achètent aucun numéro. Sert à vérifier la
+          connectivité et à relever les formats de réponse.
+        </p>
+        <div className="space-y-3">
+          {osProbes.map((p) => (
+            <div key={p.action}>
+              <div className="flex items-center justify-between">
+                <code className="text-sm">{p.action}</code>
+                <span className="flex items-center gap-2">
+                  <span className="text-xs text-muted">
+                    {p.status !== null ? `HTTP ${p.status}` : "pas de réponse"} ·{" "}
+                    {p.ms} ms
+                  </span>
+                  <StatusPill ok={p.ok && !!p.body} />
+                </span>
+              </div>
+              <pre className="mt-1 max-h-56 overflow-auto rounded-lg bg-gray-900 p-3 text-xs text-gray-100">
+                {p.error ? `ERREUR : ${p.error}` : p.body || "(réponse vide)"}
+              </pre>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       {/* Échantillon JSON brut (calibration des formats) */}
       {firstCountryRaw && (

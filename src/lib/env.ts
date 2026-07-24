@@ -53,6 +53,11 @@ export const env = {
     mock: bool("GRIZZLY_MOCK", false),
   },
 
+  // ── OnlineSim (fournisseur alternatif, en évaluation) ──
+  onlinesim: {
+    apiKey: str("ONLINESIM_API_KEY"),
+  },
+
   // ── Tarification : bénéfice fixe par tranche de coût ──
   pricing: {
     // Taux de conversion devise fournisseur -> F CFA (coût converti).
