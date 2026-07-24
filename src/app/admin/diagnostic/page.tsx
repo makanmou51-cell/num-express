@@ -5,7 +5,7 @@ import { getCatalogForService } from "@/lib/grizzly/catalog";
 import { getSettings } from "@/lib/settings";
 import { Alert, Badge, Card } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
-import { probeOnlineSim } from "@/lib/onlinesim/probe";
+import { inspectOnlineSim } from "@/lib/onlinesim/probe";
 
 export const metadata: Metadata = { title: "Admin — Diagnostic Grizzly" };
 export const dynamic = "force-dynamic";
@@ -21,18 +21,14 @@ async function safe<T>(fn: () => Promise<T>): Promise<
 }
 
 export default async function GrizzlyDiagnosticPage() {
-  const [settings, balance, countries, catalog, active, osProbes] =
+  const [settings, balance, countries, catalog, active, os] =
     await Promise.all([
       getSettings(),
       safe(() => grizzly.getBalance()),
       safe(() => grizzly.getCountries()),
       safe(() => getCatalogForService("wa")),
       safe(() => grizzly.getActiveActivations()),
-      Promise.all([
-        probeOnlineSim("getBalance"),
-        probeOnlineSim("getTariffs"),
-        probeOnlineSim("getNumbersStats", { country: 49 }),
-      ]),
+      safe(() => inspectOnlineSim(49)),
     ]);
 
   const firstCountryRaw =
@@ -156,25 +152,44 @@ export default async function GrizzlyDiagnosticPage() {
           Appels en lecture seule — n'achètent aucun numéro. Sert à vérifier la
           connectivité et à relever les formats de réponse.
         </p>
-        <div className="space-y-3">
-          {osProbes.map((p) => (
-            <div key={p.action}>
-              <div className="flex items-center justify-between">
-                <code className="text-sm">{p.action}</code>
-                <span className="flex items-center gap-2">
-                  <span className="text-xs text-muted">
-                    {p.status !== null ? `HTTP ${p.status}` : "pas de réponse"} ·{" "}
-                    {p.ms} ms
-                  </span>
-                  <StatusPill ok={p.ok && !!p.body} />
-                </span>
-              </div>
-              <pre className="mt-1 max-h-56 overflow-auto rounded-lg bg-gray-900 p-3 text-xs text-gray-100">
-                {p.error ? `ERREUR : ${p.error}` : p.body || "(réponse vide)"}
-              </pre>
+        {!os.ok ? (
+          <Alert variant="error">{os.error}</Alert>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Info label="Solde OnlineSim" value={`$${os.value.balance}`} />
+              <Info
+                label="Pays (getTariffs)"
+                value={String(os.value.countryCount ?? "?")}
+              />
+              <Info
+                label="Clé service WhatsApp"
+                value={os.value.whatsappKey ?? "introuvable"}
+              />
             </div>
-          ))}
-        </div>
+
+            <Raw
+              title="Entrée WhatsApp (Allemagne) — cherche le champ du PRIX"
+              body={os.value.whatsappEntry}
+            />
+            <Raw
+              title="Exemple de pays (getTariffs)"
+              body={os.value.countrySample}
+            />
+            <Raw
+              title={`Services disponibles (${os.value.serviceKeys.length})`}
+              body={os.value.serviceKeys.join("\n")}
+            />
+
+            {os.value.notes.length > 0 && (
+              <Alert variant="info">
+                {os.value.notes.map((n, i) => (
+                  <p key={i}>{n}</p>
+                ))}
+              </Alert>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* Échantillon JSON brut (calibration des formats) */}
@@ -188,6 +203,26 @@ export default async function GrizzlyDiagnosticPage() {
           </pre>
         </Card>
       )}
+    </div>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <p className="text-xs text-muted">{label}</p>
+      <p className="mt-0.5 break-all font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function Raw({ title, body }: { title: string; body: string | null }) {
+  return (
+    <div>
+      <p className="mb-1 text-sm font-medium">{title}</p>
+      <pre className="max-h-72 overflow-auto rounded-lg bg-gray-900 p-3 text-xs whitespace-pre-wrap break-all text-gray-100">
+        {body || "(vide)"}
+      </pre>
     </div>
   );
 }
