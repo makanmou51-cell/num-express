@@ -34,17 +34,22 @@ export const SERVICE_LABELS: Record<string, string> = {
   ot: "Autre service",
 };
 
-/** Services mis en avant dans l'UI, dans l'ordre. */
+/** Services mis en avant dans l'UI, dans l'ordre. Les plus fiables d'abord
+ *  (Telegram, Google, Instagram) ; WhatsApp délivre mal via numéros virtuels,
+ *  il reste accessible dans le catalogue complet mais n'est plus mis en avant. */
 export const FEATURED_SERVICES = [
-  "wa",
   "tg",
-  "ig",
-  "fb",
   "go",
-  "tw",
+  "ig",
   "ds",
+  "fb",
+  "tw",
+  "wb",
   "ot",
 ];
+
+/** Services réputés fiables (badge « Fiable » sur la vitrine). */
+export const RELIABLE_SERVICES = ["tg", "go", "ig", "ds"];
 
 /** Quelques noms de pays en français (sinon on retombe sur le libellé anglais). */
 const COUNTRY_FR: Record<string, string> = {

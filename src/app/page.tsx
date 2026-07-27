@@ -3,7 +3,11 @@ import { getCurrentUser } from "@/lib/auth";
 import { ButtonLink } from "@/components/ui";
 import { Logo } from "@/components/logo";
 import { ServiceIcon } from "@/components/service-icon";
-import { serviceLabel, FEATURED_SERVICES } from "@/lib/grizzly/catalog";
+import {
+  serviceLabel,
+  FEATURED_SERVICES,
+  RELIABLE_SERVICES,
+} from "@/lib/grizzly/catalog";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
@@ -63,7 +67,7 @@ export default async function HomePage() {
               <span className="text-primary">numéro virtuel</span>
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-lg text-muted lg:mx-0">
-              WhatsApp, Telegram, Instagram et plus de 2 000 services. Choisissez
+              Telegram, Google, Instagram et plus de 2 000 services. Choisissez
               un pays, payez en <strong className="text-foreground">Mobile Money</strong>,
               recevez votre code instantanément. Sans carte SIM.
             </p>
@@ -114,7 +118,8 @@ export default async function HomePage() {
             Un numéro pour chaque service
           </h2>
           <p className="mt-3 text-muted">
-            Les plateformes les plus demandées, prêtes à recevoir votre code.
+            Les plateformes les plus fiables en premier, prêtes à recevoir votre
+            code.
           </p>
         </div>
         <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -122,12 +127,17 @@ export default async function HomePage() {
             <Link
               key={code}
               href={user ? `/buy/${code}` : "/register"}
-              className="group flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:shadow-md"
+              className="group relative flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:shadow-md"
             >
               <ServiceIcon code={code} className="h-10 w-10 text-sm" />
               <span className="font-semibold group-hover:text-primary">
                 {serviceLabel(code)}
               </span>
+              {RELIABLE_SERVICES.includes(code) && (
+                <span className="absolute right-2 top-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  Fiable
+                </span>
+              )}
             </Link>
           ))}
         </div>
