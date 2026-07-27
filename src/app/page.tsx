@@ -340,7 +340,7 @@ export default async function HomePage() {
             <div className="lg:col-span-1">
               <Logo />
               <p className="mt-4 max-w-xs text-sm text-muted">
-                Numéros virtuels pour recevoir vos codes SMS (WhatsApp, Telegram,
+                Numéros virtuels pour recevoir vos codes SMS (Telegram, Google,
                 Instagram…). Paiement Mobile Money, activation en secondes.
               </p>
               <div className="mt-4 flex flex-wrap gap-1.5">
@@ -554,10 +554,10 @@ function PhoneMockup() {
             <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3">
               <div className="flex items-center gap-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
-                  W
+                  T
                 </span>
                 <span className="text-xs font-semibold text-gray-700">
-                  WhatsApp
+                  Telegram
                 </span>
                 <span className="ml-auto text-[10px] text-gray-400">
                   à l'instant
