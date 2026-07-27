@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "num express — Numéros virtuels pour WhatsApp & plus",
+    default: "num express — Numéros virtuels pour Telegram, Google & plus",
     template: "%s — num express",
   },
   description:
