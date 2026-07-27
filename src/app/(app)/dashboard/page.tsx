@@ -5,6 +5,8 @@ import { Alert, Card, ButtonLink } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
 import { StatusBadge } from "@/components/status-badge";
 import { VerifyBanner } from "@/components/verify-banner";
+import { ServiceIcon } from "@/components/service-icon";
+import { formatWhen } from "@/lib/datetime";
 
 export default async function DashboardPage({
   searchParams,
@@ -68,27 +70,61 @@ export default async function DashboardPage({
         </div>
 
         {recent.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted">
-            Aucune activation pour l'instant.
-          </p>
+          <div className="rounded-xl border border-dashed border-border py-10 text-center">
+            <p className="text-sm text-muted">
+              Aucune activation pour l'instant.
+            </p>
+            <ButtonLink href="/buy" size="sm" className="mt-3">
+              Acheter mon premier numéro
+            </ButtonLink>
+          </div>
         ) : (
           <ul className="divide-y">
-            {recent.map((a) => (
-              <li key={a.id}>
-                <Link
-                  href={`/numbers/${a.id}`}
-                  className="flex items-center justify-between gap-3 py-3 hover:opacity-80"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {a.serviceName ?? a.serviceCode} · {a.countryName ?? a.countryCode}
-                    </p>
-                    <p className="text-sm text-muted">{a.phoneNumber}</p>
-                  </div>
-                  <StatusBadge status={a.status} />
-                </Link>
-              </li>
-            ))}
+            {recent.map((a) => {
+              const received = a.status === "RECEIVED" || a.status === "COMPLETED";
+              return (
+                <li key={a.id}>
+                  <Link
+                    href={`/numbers/${a.id}`}
+                    className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-muted/50"
+                  >
+                    <ServiceIcon
+                      code={a.serviceCode}
+                      className="h-11 w-11 shrink-0 text-sm"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-medium">
+                          {a.serviceName ?? a.serviceCode}
+                        </span>
+                        <span className="text-muted">·</span>
+                        <span className="truncate text-sm text-muted">
+                          {a.countryName ?? a.countryCode}
+                        </span>
+                      </div>
+                      {received && a.smsCode ? (
+                        <p className="mt-0.5 text-sm">
+                          <span className="text-muted">Code : </span>
+                          <span className="font-mono font-semibold tracking-wider text-primary">
+                            {a.smsCode}
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="mt-0.5 truncate font-mono text-xs text-muted">
+                          {a.phoneNumber || "Numéro en attribution…"}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <StatusBadge status={a.status} />
+                      <span className="text-[11px] text-muted">
+                        {formatWhen(a.createdAt)} · {formatXof(a.priceXof)}
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Card>

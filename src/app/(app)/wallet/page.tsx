@@ -5,6 +5,7 @@ import { listTransactions } from "@/lib/wallet";
 import { reconcilePendingTopups } from "@/lib/payments";
 import { Alert, Card } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
+import { formatWhen } from "@/lib/datetime";
 import { TopupForm } from "./topup-form";
 
 export const metadata: Metadata = { title: "Mon solde" };
@@ -22,6 +23,11 @@ const STATUS_LABEL: Record<string, string> = {
   COMPLETED: "Validé",
   FAILED: "Échoué",
   CANCELLED: "Annulé",
+};
+const STATUS_CLASS: Record<string, string> = {
+  PENDING: "bg-amber-100 text-amber-800",
+  FAILED: "bg-red-100 text-red-700",
+  CANCELLED: "bg-gray-200 text-gray-600",
 };
 
 export default async function WalletPage({
@@ -74,38 +80,59 @@ export default async function WalletPage({
         <Card className="p-6">
           <h2 className="mb-4 font-semibold">Historique</h2>
           {txs.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted">
-              Aucune transaction.
-            </p>
+            <div className="rounded-xl border border-dashed border-border py-10 text-center">
+              <p className="text-sm text-muted">Aucune transaction pour l'instant.</p>
+            </div>
           ) : (
-            <ul className="divide-y text-sm">
-              {txs.map((t) => (
-                <li key={t.id} className="flex items-center justify-between py-3">
-                  <div>
-                    <p className="font-medium">
-                      {TYPE_LABEL[t.type] ?? t.type}
-                      {t.status !== "COMPLETED" && (
-                        <span className="ml-2 text-xs text-muted">
-                          ({STATUS_LABEL[t.status] ?? t.status})
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-xs text-muted">
-                      {new Date(t.createdAt).toLocaleString("fr-FR")}
-                    </p>
-                  </div>
-                  <span
-                    className={
-                      t.amount >= 0
-                        ? "font-semibold text-green-700"
-                        : "font-semibold text-red-600"
-                    }
+            <ul className="divide-y">
+              {txs.map((t) => {
+                const credit = t.amount >= 0;
+                const faded = t.status === "FAILED" || t.status === "CANCELLED";
+                return (
+                  <li
+                    key={t.id}
+                    className={`flex items-center gap-3 py-3 ${faded ? "opacity-60" : ""}`}
                   >
-                    {t.amount >= 0 ? "+" : ""}
-                    {formatXof(t.amount)}
-                  </span>
-                </li>
-              ))}
+                    <span
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base font-bold ${
+                        credit
+                          ? "bg-green-100 text-green-700"
+                          : "bg-rose-100 text-rose-600"
+                      }`}
+                      aria-hidden
+                    >
+                      {credit ? "+" : "−"}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-medium">
+                          {TYPE_LABEL[t.type] ?? t.type}
+                        </span>
+                        {t.status !== "COMPLETED" && (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              STATUS_CLASS[t.status] ?? "bg-gray-200 text-gray-600"
+                            }`}
+                          >
+                            {STATUS_LABEL[t.status] ?? t.status}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted">
+                        {formatWhen(t.createdAt)}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 font-semibold ${
+                        credit ? "text-green-700" : "text-rose-600"
+                      }`}
+                    >
+                      {credit ? "+" : "−"}
+                      {formatXof(Math.abs(t.amount))}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>
