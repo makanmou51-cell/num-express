@@ -161,13 +161,28 @@ export async function getUserDetail(id: string) {
   return { user, transactions, activations, rentals };
 }
 
-/** Crédite/débite manuellement le solde d'un utilisateur (action admin). */
+/**
+ * Crédite/débite manuellement le solde d'un utilisateur (action admin).
+ *
+ * Un crédit manuel ferme aussi les recharges encore EN ATTENTE du même
+ * client — sans quoi le client serait crédité deux fois.
+ *
+ * Le scénario est arrivé : un client n'arrive pas à payer, l'admin lui
+ * crédite la somme à la main, mais la page de paiement du prestataire reste
+ * ouverte 24 h. Si le client finit par payer, la réconciliation (qui tourne à
+ * chaque visite de /wallet et par le cron, sur 48 h) crédite une seconde
+ * fois. La somme part en double, et rien ne le signale.
+ *
+ * On ne ferme que les recharges ouvertes AVANT le geste de l'admin : c'est
+ * l'épisode qu'il est en train de rattraper. Une recharge lancée après est
+ * une nouvelle intention du client, on n'y touche pas.
+ */
 export async function manualAdjustBalance(
   userId: string,
   amount: number,
   reason: string,
-) {
-  return applyWalletTx({
+): Promise<{ closedPending: number }> {
+  await applyWalletTx({
     userId,
     type: amount >= 0 ? "TOPUP" : "ADJUSTMENT",
     amount,
@@ -175,6 +190,25 @@ export async function manualAdjustBalance(
     description: reason || "Ajustement administrateur",
     requireFunds: amount < 0, // empêche un solde négatif sur un débit
   });
+
+  if (amount <= 0) return { closedPending: 0 };
+
+  const depuis = new Date(Date.now() - 48 * 3600_000);
+  const closed = await prisma.transaction.updateMany({
+    where: {
+      userId,
+      type: "TOPUP",
+      status: "PENDING",
+      provider: { not: "MANUAL" },
+      createdAt: { gte: depuis },
+    },
+    data: {
+      status: "CANCELLED",
+      description:
+        "Remplacée par un crédit manuel de l'admin — fermée pour éviter un double crédit",
+    },
+  });
+  return { closedPending: closed.count };
 }
 
 export async function setUserRole(userId: string, role: "USER" | "ADMIN") {

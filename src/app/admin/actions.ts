@@ -3,14 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
-import { manualAdjustBalance, setUserRole } from "@/lib/admin";
+import { manualAdjustBalance, setUserRole, sendUserEmail } from "@/lib/admin";
+import { adminRefundRental } from "@/lib/rentals";
 import { updateSettings, SETTING_KEYS, type AppSettings } from "@/lib/settings";
 import { InsufficientFundsError } from "@/lib/wallet";
 import type { ActionState } from "@/lib/forms";
 
 const adjustSchema = z.object({
   userId: z.string().min(1),
-  amount: z.coerce.number().int().refine((n) => n !== 0, "Montant non nul requis"),
+  amount: z.coerce
+    .number()
+    .int()
+    .refine((n) => n !== 0, "Montant non nul requis"),
   reason: z.string().trim().max(200).optional().or(z.literal("")),
 });
 
@@ -28,12 +32,13 @@ export async function adjustBalanceAction(
     return { error: parsed.error.issues[0]?.message ?? "Données invalides" };
   }
 
+  let closedPending = 0;
   try {
-    await manualAdjustBalance(
+    ({ closedPending } = await manualAdjustBalance(
       parsed.data.userId,
       parsed.data.amount,
       parsed.data.reason || "Ajustement administrateur",
-    );
+    ));
   } catch (e) {
     if (e instanceof InsufficientFundsError) {
       return { error: "Solde insuffisant pour ce débit." };
@@ -42,7 +47,15 @@ export async function adjustBalanceAction(
   }
 
   revalidatePath(`/admin/users/${parsed.data.userId}`);
-  return { success: "Solde mis à jour." };
+  // On le dit : l'admin doit savoir qu'une page de paiement encore ouverte
+  // vient d'être fermée en son nom, et pourquoi.
+  return {
+    success:
+      "Solde mis à jour." +
+      (closedPending > 0
+        ? ` ${closedPending} recharge${closedPending > 1 ? "s" : ""} encore en attente ${closedPending > 1 ? "ont" : "a"} été fermée${closedPending > 1 ? "s" : ""} pour éviter un double crédit.`
+        : ""),
+  };
 }
 
 export async function setRoleAction(
@@ -58,6 +71,33 @@ export async function setRoleAction(
   await setUserRole(userId, role);
   revalidatePath(`/admin/users/${userId}`);
   return { success: `Rôle mis à jour : ${role}.` };
+}
+
+export async function sendUserEmailAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+  const userId = String(formData.get("userId") ?? "");
+  const subject = String(formData.get("subject") ?? "").trim();
+  const body = String(formData.get("body") ?? "").trim();
+  if (!userId || !subject || !body) {
+    return { error: "Objet et message obligatoires." };
+  }
+  try {
+    const to = await sendUserEmail(userId, subject, body);
+    return { success: `E-mail envoyé à ${to}.` };
+  } catch (e) {
+    return { error: `Envoi impossible : ${(e as Error).message}` };
+  }
+}
+
+export async function refundRentalAction(
+  id: string,
+): Promise<{ ok: boolean; message?: string }> {
+  await requireAdmin();
+  if (!id) return { ok: false, message: "Location introuvable." };
+  return adminRefundRental(id);
 }
 
 export async function updateSettingsAction(
