@@ -1,42 +1,30 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { listTransactions } from "@/lib/wallet";
+import { listTransactions, numberPriceRange } from "@/lib/wallet";
 import { reconcilePendingTopups } from "@/lib/payments";
 import { Alert, Card } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
-import { formatWhen } from "@/lib/datetime";
 import { TopupForm } from "./topup-form";
+import { TopupPending } from "./topup-pending";
+import { WalletHistory } from "./wallet-history";
 
 export const metadata: Metadata = { title: "Mon solde" };
 // Laisse le temps à LeekPay (création de paiement) et à la réconciliation.
 export const maxDuration = 60;
 
-const TYPE_LABEL: Record<string, string> = {
-  TOPUP: "Recharge",
-  PURCHASE: "Achat",
-  REFUND: "Remboursement",
-  ADJUSTMENT: "Ajustement",
-};
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: "En attente",
-  COMPLETED: "Validé",
-  FAILED: "Échoué",
-  CANCELLED: "Annulé",
-};
-const STATUS_CLASS: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  FAILED: "bg-red-100 text-red-700",
-  CANCELLED: "bg-gray-200 text-gray-600",
-};
-
 export default async function WalletPage({
   searchParams,
 }: {
-  searchParams: Promise<{ topup?: string }>;
+  searchParams: Promise<{ topup?: string; montant?: string }>;
 }) {
   const user = await requireUser();
-  const { topup } = await searchParams;
+  const { topup, montant } = await searchParams;
+
+  /* Somme transmise par l'écran d'achat (« Il vous manque X »). Bornée :
+     le paramètre vient de l'URL, donc du client. */
+  const suggere =
+    Math.min(Math.max(Number(montant) || 0, 0), 500_000) || undefined;
 
   // On interroge le prestataire pour toute recharge en attente et on crédite si
   // payé (ne fait des appels API que s'il existe des PENDING). Fonctionne sans
@@ -48,7 +36,14 @@ export default async function WalletPage({
   });
   const balance = fresh?.balance ?? user.balance;
 
-  const txs = await listTransactions(user.id, 30);
+  const [txs, prix] = await Promise.all([
+    listTransactions(user.id, 30),
+    numberPriceRange(),
+  ]);
+  // Recharge en attente la plus récente : sert de clé au compteur de
+  // vérifications, pour qu'un nouveau paiement reparte de zéro.
+  const pendingId =
+    txs.find((t) => t.type === "TOPUP" && t.status === "PENDING")?.id ?? null;
 
   return (
     <div className="space-y-6">
@@ -60,81 +55,37 @@ export default async function WalletPage({
         </Alert>
       )}
       {topup === "retour" && credited === 0 && (
-        <Alert variant="info">
-          Merci ! Si le paiement vient d'être effectué, votre solde sera crédité
-          dès sa confirmation par le prestataire (patientez quelques instants
-          puis rafraîchissez).
-        </Alert>
+        <TopupPending pendingId={pendingId} />
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="p-6">
-          <p className="text-sm text-muted">Solde disponible</p>
-          <p className="mt-1 text-3xl font-bold">{formatXof(balance)}</p>
-          <div className="mt-6">
-            <h2 className="mb-3 font-semibold">Recharger</h2>
-            <TopupForm />
+        <div className="space-y-6">
+          {/* Solde — carte dégradée premium */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-dark to-[#0d5a37] p-6 text-white shadow-lg">
+            <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-400/20 blur-2xl" />
+            <p className="text-sm text-white/70">Solde disponible</p>
+            <p className="mt-1 text-4xl font-extrabold tracking-tight">
+              {formatXof(balance)}
+            </p>
           </div>
-        </Card>
+
+          <Card className="p-6">
+            <h2 className="mb-3 font-semibold">Recharger</h2>
+            <TopupForm prix={prix} suggere={suggere} />
+          </Card>
+        </div>
 
         <Card className="p-6">
-          <h2 className="mb-4 font-semibold">Historique</h2>
-          {txs.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border py-10 text-center">
-              <p className="text-sm text-muted">Aucune transaction pour l'instant.</p>
-            </div>
-          ) : (
-            <ul className="divide-y">
-              {txs.map((t) => {
-                const credit = t.amount >= 0;
-                const faded = t.status === "FAILED" || t.status === "CANCELLED";
-                return (
-                  <li
-                    key={t.id}
-                    className={`flex items-center gap-3 py-3 ${faded ? "opacity-60" : ""}`}
-                  >
-                    <span
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base font-bold ${
-                        credit
-                          ? "bg-green-100 text-green-700"
-                          : "bg-rose-100 text-rose-600"
-                      }`}
-                      aria-hidden
-                    >
-                      {credit ? "+" : "−"}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="font-medium">
-                          {TYPE_LABEL[t.type] ?? t.type}
-                        </span>
-                        {t.status !== "COMPLETED" && (
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              STATUS_CLASS[t.status] ?? "bg-gray-200 text-gray-600"
-                            }`}
-                          >
-                            {STATUS_LABEL[t.status] ?? t.status}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 text-xs text-muted">
-                        {formatWhen(t.createdAt)}
-                      </p>
-                    </div>
-                    <span
-                      className={`shrink-0 font-semibold ${
-                        credit ? "text-green-700" : "text-rose-600"
-                      }`}
-                    >
-                      {credit ? "+" : "−"}
-                      {formatXof(Math.abs(t.amount))}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <WalletHistory
+            transactions={txs.map((t) => ({
+              id: t.id,
+              type: t.type,
+              amount: t.amount,
+              status: t.status,
+              createdAt: t.createdAt.toISOString(),
+              activationId: t.activationId,
+            }))}
+          />
         </Card>
       </div>
     </div>

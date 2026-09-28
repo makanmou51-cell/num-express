@@ -10,11 +10,7 @@ export class InsufficientFundsError extends Error {
 }
 
 export type TxType =
-  | "TOPUP"
-  | "PURCHASE"
-  | "REFUND"
-  | "ADJUSTMENT"
-  | "REFERRAL";
+  "TOPUP" | "PURCHASE" | "REFUND" | "ADJUSTMENT" | "REFERRAL";
 
 export interface ApplyTxOptions {
   userId: string;
@@ -93,4 +89,34 @@ export function listTransactions(userId: string, take = 20) {
     orderBy: { createdAt: "desc" },
     take,
   });
+}
+
+/**
+ * Fourchette de prix réellement pratiquée sur les numéros.
+ *
+ * Sert à écrire, sur l'écran de recharge, ce que chaque montant permet
+ * d'acheter. Sans cette information le client venait de la publicité, prenait
+ * le premier montant proposé (500 F) et découvrait ensuite qu'aucun numéro ne
+ * descend sous 2 750 F : 14 des 15 clients qui ont payé sans jamais acheter
+ * étaient exactement dans ce cas.
+ *
+ * Mesuré sur les ventes plutôt que codé en dur : le prix suit le coût
+ * fournisseur et le taux de change, une constante serait fausse en un mois.
+ * Lecture sur 90 jours pour ne pas traîner d'anciens tarifs.
+ */
+export async function numberPriceRange(): Promise<{
+  min: number;
+  median: number;
+} | null> {
+  const since = new Date(Date.now() - 90 * 86_400_000);
+  const rows = await prisma.activation.findMany({
+    where: { createdAt: { gte: since } },
+    select: { priceXof: true },
+    orderBy: { priceXof: "asc" },
+  });
+  if (rows.length < 5) return null; // trop peu de ventes : on n'affirme rien
+  return {
+    min: rows[0].priceXof,
+    median: rows[Math.floor(rows.length / 2)].priceXof,
+  };
 }

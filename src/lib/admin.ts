@@ -10,29 +10,49 @@ export interface AdminStats {
   activations: number;
   grossSales: number; // total dépensé en achats (F CFA)
   liabilities: number; // somme des soldes utilisateurs (dette)
-  topups: number; // total des recharges validées
+  topups: number; // encaissé pour de vrai (hors crédits manuels)
+  manualCredits: number; // crédité à la main par l'admin
   commissions: number; // total des commissions versées
 }
 
 export async function getAdminStats(): Promise<AdminStats> {
-  const [users, activations, purchaseAgg, balanceAgg, topupAgg, commissionAgg] =
-    await Promise.all([
-      prisma.user.count(),
-      prisma.activation.count(),
-      prisma.transaction.aggregate({
-        where: { type: "PURCHASE" },
-        _sum: { amount: true },
-      }),
-      prisma.user.aggregate({ _sum: { balance: true } }),
-      prisma.transaction.aggregate({
-        where: { type: "TOPUP", status: "COMPLETED" },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.aggregate({
-        where: { type: "REFERRAL" },
-        _sum: { amount: true },
-      }),
-    ]);
+  const [
+    users,
+    activations,
+    purchaseAgg,
+    balanceAgg,
+    topupAgg,
+    manualAgg,
+    commissionAgg,
+  ] = await Promise.all([
+    prisma.user.count(),
+    prisma.activation.count(),
+    prisma.transaction.aggregate({
+      where: { type: "PURCHASE" },
+      _sum: { amount: true },
+    }),
+    prisma.user.aggregate({ _sum: { balance: true } }),
+    /* « Argent réellement encaissé » doit exclure ce que l'admin crédite
+         lui-même (dédommagements, cadeaux) : sinon le chiffre d'affaires
+         affiché grossit à chaque geste commercial, sans qu'un franc soit
+         entré. Les crédits manuels sont comptés à part, pas cachés. */
+    prisma.transaction.aggregate({
+      where: {
+        type: "TOPUP",
+        status: "COMPLETED",
+        provider: { not: "MANUAL" },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.transaction.aggregate({
+      where: { type: "TOPUP", status: "COMPLETED", provider: "MANUAL" },
+      _sum: { amount: true },
+    }),
+    prisma.transaction.aggregate({
+      where: { type: "REFERRAL" },
+      _sum: { amount: true },
+    }),
+  ]);
 
   return {
     users,
@@ -40,6 +60,7 @@ export async function getAdminStats(): Promise<AdminStats> {
     grossSales: Math.abs(purchaseAgg._sum.amount ?? 0),
     liabilities: balanceAgg._sum.balance ?? 0,
     topups: topupAgg._sum.amount ?? 0,
+    manualCredits: manualAgg._sum.amount ?? 0,
     commissions: commissionAgg._sum.amount ?? 0,
   };
 }

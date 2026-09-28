@@ -9,8 +9,28 @@ import { formatXof } from "@/lib/pricing";
 import type { ActionState } from "@/lib/forms";
 import { cn } from "@/lib/utils";
 
-const PRESETS = [500, 1000, 2000, 5000, 10000];
+/* Paliers alignés sur ce que le catalogue vend RÉELLEMENT.
+   Les anciens (500 · 1 000 · 2 000 · 5 000 · 10 000) avaient un défaut grave :
+   trois d'entre eux ne permettaient d'acheter AUCUN numéro, le moins cher
+   étant à 2 750 F. Constaté sur les ventes : 36 recharges sur 110 sont
+   arrivées sous ce seuil, et 14 des 15 clients qui ont payé sans jamais
+   acheter étaient exactement dans ce cas — ils avaient sorti leur argent
+   Mobile Money pour un solde inutilisable.
+   On garde un petit palier, mais étiqueté : le Boost, lui, démarre à 35 F. */
+const PRESETS = [500, 3000, 5000, 10000, 20000];
 const MIN = 200;
+
+/** Ce que le montant permet d'acheter, écrit sous la touche. */
+function ceQueCaAchete(
+  montant: number,
+  prix: { min: number; median: number } | null,
+): string {
+  if (!prix) return "";
+  if (montant < prix.min) return "Boost uniquement";
+  const n = Math.floor(montant / prix.median);
+  if (n < 1) return "1 numéro";
+  return `${n} numéro${n > 1 ? "s" : ""}`;
+}
 
 /**
  * Formulaire de recharge Mobile Money.
@@ -28,9 +48,21 @@ const MIN = 200;
  * 3. Il restait cliquable sans montant, pour ne renvoyer qu'une erreur rouge
  *    en haut de page. Il est désormais désactivé et le dit.
  */
-export function TopupForm() {
-  const [amount, setAmount] = useState<number | "">("");
-  const [custom, setCustom] = useState(false);
+export function TopupForm({
+  prix,
+  suggere,
+}: {
+  /** Fourchette réelle des prix, mesurée sur les ventes. */
+  prix: { min: number; median: number } | null;
+  /** Montant manquant, transmis depuis l'écran d'achat. */
+  suggere?: number;
+}) {
+  /* Si le client arrive depuis « Il vous manque 3 700 F », la somme est déjà
+     là. Avant, elle était perdue : il repartait d'une page vide et devait
+     deviner — souvent en reprenant le premier palier, trop petit. */
+  const preselection = suggere && PRESETS.includes(suggere) ? suggere : "";
+  const [amount, setAmount] = useState<number | "">(suggere ?? "");
+  const [custom, setCustom] = useState(Boolean(suggere) && !preselection);
   const [state, formAction] = useActionState<ActionState, FormData>(
     topupAction,
     undefined,
@@ -43,9 +75,24 @@ export function TopupForm() {
       {state?.error && <Alert variant="error">{state.error}</Alert>}
 
       <div>
-        <p id="topup-amount-label" className="mb-2 block text-sm font-medium">
+        <p id="topup-amount-label" className="block text-sm font-medium">
           Combien voulez-vous recharger&nbsp;?
         </p>
+        {/* L'information la plus utile de l'écran, et elle n'y figurait pas :
+            le client choisissait un montant sans savoir ce que coûte ce
+            qu'il est venu acheter. */}
+        {prix && (
+          <p className="mb-2 mt-0.5 text-xs text-muted">
+            Un numéro coûte entre{" "}
+            <strong className="text-foreground">{formatXof(prix.min)}</strong>{" "}
+            et{" "}
+            <strong className="text-foreground">
+              {formatXof(prix.median * 2)}
+            </strong>{" "}
+            selon le pays. Le Boost démarre à 35 F.
+          </p>
+        )}
+        {!prix && <div className="mb-2" />}
         <div
           role="radiogroup"
           aria-labelledby="topup-amount-label"
@@ -53,6 +100,7 @@ export function TopupForm() {
         >
           {PRESETS.map((p) => {
             const on = !custom && amount === p;
+            const achete = ceQueCaAchete(p, prix);
             return (
               <button
                 key={p}
@@ -64,7 +112,7 @@ export function TopupForm() {
                   setAmount(p);
                 }}
                 className={cn(
-                  "relative flex min-h-14 items-center justify-center rounded-xl border-2 px-2 text-base font-bold tabular-nums transition-colors",
+                  "relative flex min-h-16 flex-col items-center justify-center rounded-xl border-2 px-1 py-2 text-center text-base font-bold tabular-nums transition-colors",
                   on
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border bg-white text-foreground active:bg-gray-100",
@@ -73,7 +121,20 @@ export function TopupForm() {
                 {on && (
                   <IconCheck className="absolute right-1.5 top-1.5 h-4 w-4" />
                 )}
-                {p.toLocaleString("fr-FR")}
+                <span className="block">{p.toLocaleString("fr-FR")}</span>
+                {/* La ligne qui manquait : le client venait d'une publicité
+                    sur les numéros et n'avait aucun moyen de savoir que son
+                    montant n'en achetait aucun. */}
+                {achete && (
+                  <span
+                    className={cn(
+                      "mt-0.5 block text-[10px] font-medium leading-tight",
+                      on ? "text-primary-foreground/80" : "text-muted",
+                    )}
+                  >
+                    {achete}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -87,7 +148,7 @@ export function TopupForm() {
               setAmount("");
             }}
             className={cn(
-              "flex min-h-14 items-center justify-center rounded-xl border-2 px-2 text-base font-bold transition-colors",
+              "flex min-h-16 items-center justify-center rounded-xl border-2 px-1 text-base font-bold transition-colors",
               custom
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border bg-white text-foreground active:bg-gray-100",
@@ -113,7 +174,9 @@ export function TopupForm() {
             min={MIN}
             step={50}
             required
-            autoFocus
+            // Pas de focus auto quand la somme est déjà pré-remplie : faire
+            // surgir le clavier sur un champ correct est une gêne.
+            autoFocus={!suggere}
             placeholder={`Minimum ${MIN}`}
             value={amount}
             onChange={(e) =>
