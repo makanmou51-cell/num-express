@@ -22,7 +22,12 @@ export default async function AdminLayout({
   await requireAdmin();
 
   return (
-    <div className="flex min-h-screen flex-col">
+    /* Tout l'espace admin est occulté dans les enregistrements de session :
+       on y affiche les e-mails, les soldes, les numéros et les codes SMS de
+       TOUS les clients. Un seul attribut posé sur la racine couvre chaque
+       page enfant, présente et à venir — bien plus sûr que de masquer les
+       éléments un à un, où le prochain écran ajouté serait oublié. */
+    <div className="flex min-h-screen flex-col" data-clarity-mask="true">
       <header className="border-b bg-white">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-3">
