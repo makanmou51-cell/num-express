@@ -6,7 +6,10 @@ import { Button, Badge } from "@/components/ui";
 
 const NAV = [
   { href: "/admin", label: "Vue d'ensemble" },
+  { href: "/admin/funnel", label: "Entonnoir" },
   { href: "/admin/users", label: "Utilisateurs" },
+  { href: "/admin/boost", label: "Boost 🚀" },
+  { href: "/admin/broadcast", label: "Messages" },
   { href: "/admin/settings", label: "Réglages" },
   { href: "/admin/diagnostic", label: "Diagnostic" },
 ];
