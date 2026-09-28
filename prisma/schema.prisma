@@ -34,8 +34,130 @@ model User {
   activations        Activation[]
   transactions       Transaction[]
   verificationTokens VerificationToken[]
+  boostOrders        BoostOrder[]
+  rentals            Rental[]
+  pushSubscriptions  PushSubscription[]
 
   @@index([referredById])
+}
+
+// ─────────────────────── Diffusion e-mail par lots ─────────────────────
+// Le plan Resend gratuit plafonne a 100 envois/jour, et une fonction Vercel
+// est coupee a 60 s. Envoyer a 480 clients d'un coup echouait donc deux fois :
+// quota depasse ET fonction interrompue en cours de liste, sans savoir qui
+// avait recu quoi.
+//
+// On stocke donc le message une fois, et UNE LIGNE PAR DESTINATAIRE traitee.
+// La reprise consiste a chercher les utilisateurs qui n'ont pas encore de
+// ligne : aucun doublon possible, meme si on relance dix fois.
+model Broadcast {
+  id        String   @id @default(cuid())
+  subject   String
+  body      String
+  createdAt DateTime @default(now())
+  // done = tous les destinataires ont ete traites.
+  done      Boolean  @default(false)
+
+  deliveries BroadcastDelivery[]
+
+  @@index([done])
+}
+
+model BroadcastDelivery {
+  id          String    @id @default(cuid())
+  broadcastId String
+  broadcast   Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  userId      String
+  email       String
+  ok          Boolean
+  error       String?
+  sentAt      DateTime  @default(now())
+
+  // La cle d'unicite : un destinataire ne peut etre traite qu'une fois par
+  // diffusion. C'est ce qui rend la reprise sure.
+  @@unique([broadcastId, userId])
+  @@index([broadcastId])
+}
+
+// ──────────────────── Notifications navigateur (Web Push) ──────────────
+// Un abonnement = UN navigateur sur UN appareil. Le même client peut donc en
+// avoir plusieurs (téléphone + ordinateur). Le champ endpoint est l'identifiant
+// unique fourni par le navigateur : c'est lui qui sert de clé, pas l'user.
+//
+// Le champ userId est optionnel : un visiteur PAS ENCORE INSCRIT peut accepter les
+// notifications. On peut ainsi lui annoncer les nouveaux stocks et le faire
+// revenir — c'est tout l'intérêt du canal.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String // clé publique du navigateur
+  auth      String // secret d'authentification du navigateur
+  userAgent String? // pour du diagnostic, jamais affiché au client
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Désactivé quand le navigateur répond 404/410 : l'abonnement est mort.
+  active    Boolean  @default(true)
+  lastSentAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([active])
+}
+
+// ──────────────────────────── Location (numéro loué) ───────────────────
+// Numéro DÉDIÉ loué chez HeroSMS pour 1 à 180 jours. Reçoit PLUSIEURS SMS
+// pendant la durée (contrairement à une activation = un seul code). Meilleure
+// fiabilité pour WhatsApp car non partagé.
+model Rental {
+  id             String @id @default(cuid())
+  userId         String
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  providerRentId String @unique // activationId renvoyé par HeroSMS
+  phoneNumber    String
+  countryCode    String
+  countryName    String?
+  serviceCode    String
+  serviceName    String?
+
+  durationHours  Int // 24 | 72 | 168 | 336 | 720 ...
+  priceXof       Int // montant débité à l'utilisateur (F CFA)
+  costRaw        Float? // coût brut côté HeroSMS (USD)
+  status         String  @default("ACTIVE") // ACTIVE | EXPIRED | CANCELLED
+  lastCode       String? // dernier code reçu (l'historique complet est lu en direct)
+
+  createdAt DateTime @default(now())
+  endsAt    DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+// Commande de « boost » réseaux sociaux (abonnés / likes / vues) via panel SMM.
+model BoostOrder {
+  id               String @id @default(cuid())
+  userId           String
+  user             User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  network          String // tiktok | instagram | facebook | ...
+  serviceKey       String // clé catalogue interne (ex "tiktok_followers")
+  serviceLabel     String // libellé affiché au client
+  peakerrServiceId Int // ID du service côté Peakerr
+  link             String
+  quantity         Int
+  priceXof         Int // montant débité à l'utilisateur
+
+  providerOrderId  String? // ID de commande Peakerr
+  status           String  @default("PENDING") // PENDING|PROCESSING|IN_PROGRESS|COMPLETED|PARTIAL|CANCELED|FAILED|REFUNDED
+  startCount       Int?
+  remains          Int?
+  refunded         Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // Jetons à usage unique : vérification d'e-mail et réinitialisation de mot de passe.
@@ -76,6 +198,7 @@ model Activation {
   priceXof             Int // montant débité à l'utilisateur (F CFA)
   costRaw              Float? // coût brut côté Grizzly (devise fournisseur), pour marge/stats
   status               String  @default("WAITING_CODE") // WAITING_CODE | RECEIVED | COMPLETED | CANCELLED | REFUNDED | EXPIRED
+  verifyType           String  @default("SMS") // SMS | CALL — méthode choisie par le client
   smsCode              String?
   smsText              String?
   refunded             Boolean @default(false)
