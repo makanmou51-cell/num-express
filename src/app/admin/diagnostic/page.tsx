@@ -5,21 +5,42 @@ import { getCatalogForService } from "@/lib/grizzly/catalog";
 import { getSettings } from "@/lib/settings";
 import { Alert, Badge, Card } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
-import { inspectOnlineSim, inspectCatalogStrategies } from "@/lib/onlinesim/probe";
-import { usingOnlineSim } from "@/lib/grizzly/catalog";
+import {
+  inspectOnlineSim,
+  inspectCatalogStrategies,
+} from "@/lib/onlinesim/probe";
+import { usingOnlineSim, usingHeroSms } from "@/lib/grizzly/catalog";
+import { Suspense } from "react";
+import { RentalsProbe } from "./rentals-probe";
 
 export const metadata: Metadata = { title: "Admin — Diagnostic Grizzly" };
 export const dynamic = "force-dynamic";
 
-async function safe<T>(fn: () => Promise<T>): Promise<
-  { ok: true; value: T } | { ok: false; error: string }
-> {
+async function safe<T>(
+  fn: () => Promise<T>,
+): Promise<{ ok: true; value: T } | { ok: false; error: string }> {
   try {
     return { ok: true, value: await fn() };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
 }
+
+/* Le fournisseur réellement actif. Cette page affichait « Grizzly SMS » en
+   dur dès que ce n'était pas OnlineSim — donc aussi quand HeroSMS tournait,
+   ce qui laissait croire à une mauvaise configuration alors que tout était
+   correct (le solde affiché était bien celui d'HeroSMS). */
+const PROVIDER_LABEL = usingOnlineSim
+  ? "OnlineSim"
+  : usingHeroSms
+    ? "HeroSMS"
+    : "Grizzly SMS";
+const PROVIDER_BASE_URL = usingHeroSms
+  ? env.heroSms.baseUrl
+  : env.grizzly.baseUrl;
+const PROVIDER_CURRENCY = usingHeroSms
+  ? env.heroSms.currency
+  : env.grizzly.currency;
 
 export default async function GrizzlyDiagnosticPage() {
   const [settings, balance, countries, catalog, active, os, strategies] =
@@ -51,14 +72,28 @@ export default async function GrizzlyDiagnosticPage() {
         </p>
       </div>
 
+      {/* Sonde location : montre, duree par duree, ce qu'on peut reellement
+          vendre. Repond a « pourquoi la page d'achat dit Indisponible ».
+          Sous Suspense : elle interroge HeroSMS pays par pays, le reste de la
+          page ne doit pas attendre. */}
+      <Suspense
+        fallback={
+          <Card className="p-5">
+            <p className="text-sm text-muted">
+              Interrogation des locations chez HeroSMS…
+            </p>
+          </Card>
+        }
+      >
+        <RentalsProbe service="wa" />
+      </Suspense>
+
       <Alert variant={usingOnlineSim ? "info" : "success"}>
-        <strong>
-          Fournisseur ACTIF : {usingOnlineSim ? "OnlineSim" : "Grizzly SMS"}
-        </strong>{" "}
-        — c'est lui qui délivre les numéros vendus sur le site.{" "}
+        <strong>Fournisseur ACTIF : {PROVIDER_LABEL}</strong> — c'est lui qui
+        délivre les numéros vendus sur le site.{" "}
         {usingOnlineSim
           ? "Grizzly reste connecté ci-dessous, mais n'est plus utilisé."
-          : `Connecté à ${env.grizzly.baseUrl}`}
+          : `Connecté à ${PROVIDER_BASE_URL}`}
       </Alert>
 
       {isGrizzlyMock && (
@@ -73,10 +108,12 @@ export default async function GrizzlyDiagnosticPage() {
       <Card className="p-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-muted">Solde fournisseur (Grizzly)</p>
+            <p className="text-sm text-muted">
+              Solde fournisseur ({PROVIDER_LABEL})
+            </p>
             {balance.ok ? (
               <p className="mt-1 text-2xl font-bold">
-                {balance.value.toFixed(2)} {env.grizzly.currency}
+                {balance.value.toFixed(2)} {PROVIDER_CURRENCY}
               </p>
             ) : (
               <p className="mt-1 text-sm text-red-600">{balance.error}</p>
@@ -114,9 +151,7 @@ export default async function GrizzlyDiagnosticPage() {
         <CheckCard
           title="getActiveActivations"
           ok={active.ok}
-          detail={
-            active.ok ? `${active.value.length} en cours` : active.error
-          }
+          detail={active.ok ? `${active.value.length} en cours` : active.error}
         />
       </div>
 
@@ -140,7 +175,8 @@ export default async function GrizzlyDiagnosticPage() {
                   <span>
                     {o.countryName}{" "}
                     <span className="text-muted">
-                      (coût {o.rawCost} {env.grizzly.currency} · {o.count} dispo)
+                      (coût {o.rawCost} {env.grizzly.currency} · {o.count}{" "}
+                      dispo)
                     </span>
                   </span>
                   <strong>{formatXof(o.priceXof)}</strong>
@@ -308,9 +344,7 @@ function CheckCard({
         <code className="text-sm">{title}</code>
         <StatusPill ok={ok} />
       </div>
-      <p
-        className={`mt-2 text-sm ${ok ? "text-muted" : "text-red-600"}`}
-      >
+      <p className={`mt-2 text-sm ${ok ? "text-muted" : "text-red-600"}`}>
         {detail}
       </p>
     </Card>
