@@ -1,7 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { preferredOperators } from "@/lib/grizzly/operators";
 import { grizzly, GrizzlyError, SET_STATUS } from "@/lib/grizzly/client";
-import { getOffer, usingOnlineSim } from "@/lib/grizzly/catalog";
+import { getOffer, usingHeroSms, usingOnlineSim } from "@/lib/grizzly/catalog";
 import { getSettings } from "@/lib/settings";
 import {
   onlinesim,
@@ -11,12 +12,16 @@ import {
 import { env } from "@/lib/env";
 import { applyWalletTx, InsufficientFundsError } from "@/lib/wallet";
 import { payReferralCommission } from "@/lib/affiliate";
+import { pushToUser } from "@/lib/push";
 import type { Activation } from "@/generated/prisma/client";
 
 // Doit refléter le délai RÉEL du fournisseur actif : afficher plus long
 // ferait patienter le client sur un numéro déjà libéré côté fournisseur.
 const ACTIVATION_TTL_MIN =
   env.activationTtlMin > 0 ? env.activationTtlMin : usingOnlineSim ? 15 : 20;
+
+/** Temps total accordé aux essais par opérateur avant de prendre au hasard. */
+const OPERATOR_TRY_BUDGET_MS = 7_000;
 
 export class PurchaseError extends Error {
   code: "UNAVAILABLE" | "PROVIDER" | "FUNDS";
@@ -28,6 +33,33 @@ export class PurchaseError extends Error {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Notification navigateur « ton code est arrivé ».
+ *
+ * C'est LE moment qui compte : le client a saisi son numéro dans WhatsApp et
+ * a quitté le navigateur. Sans cette notification, il doit revenir surveiller
+ * la page lui-même.
+ *
+ * Best-effort et non bloquant : un échec d'envoi ne doit jamais empêcher
+ * l'enregistrement du code ni la suite du traitement.
+ */
+function notifyCodeReceived(
+  userId: string,
+  code: string,
+  activationId: string,
+) {
+  pushToUser(userId, {
+    title: "Ton code est arrivé",
+    body: `Code : ${code}`,
+    url: `/numbers/${activationId}`,
+    // Un seul avis par activation : un second SMS remplace le premier au lieu
+    // d'empiler les lignes dans le volet de notifications.
+    tag: `code-${activationId}`,
+  }).catch(() => {
+    /* le client verra le code en revenant sur la page */
+  });
+}
 
 /**
  * Achat OnlineSim : getNum ne renvoie qu'un `tzid` ; le numéro lui-même
@@ -43,7 +75,8 @@ async function buyFromOnlineSim(
   for (let i = 0; i < 5; i++) {
     try {
       const st = await onlinesim.getState(tzid);
-      if (st.phoneNumber) return { activationId: tzid, phoneNumber: st.phoneNumber };
+      if (st.phoneNumber)
+        return { activationId: tzid, phoneNumber: st.phoneNumber };
     } catch {
       /* transitoire : on retente */
     }
@@ -58,6 +91,7 @@ export async function purchaseNumber(
   userId: string,
   serviceCode: string,
   countryCode: string,
+  verifyType: "SMS" | "CALL" = "SMS",
 ): Promise<Activation> {
   // 1) Revalider l'offre et le prix côté serveur.
   const offer = await getOffer(serviceCode, countryCode);
@@ -89,31 +123,83 @@ export async function purchaseNumber(
   // le client paie bien le prix affiché.
   const settings = await getSettings();
   const maxPrice =
-    Math.round(offer.rawCost * (1 + Math.max(0, settings.maxPriceBuffer)) * 100) /
-    100;
+    Math.round(
+      offer.rawCost * (1 + Math.max(0, settings.maxPriceBuffer)) * 100,
+    ) / 100;
   let acquired: { activationId: string; phoneNumber: string };
   try {
     if (usingOnlineSim) {
       acquired = await buyFromOnlineSim(serviceCode, countryCode);
     } else {
-      // Fiabilité d'abord : on IMPOSE le fournisseur premium choisi. PAS de repli
-      // vers un fournisseur bon marché — il délivre mal tout en étant facturé au
-      // prix premium (le pire des cas). Si son lot est épuisé, l'achat échoue
-      // proprement (UNAVAILABLE) et le client ne paie rien.
-      acquired = await grizzly.getNumber({
-        service: serviceCode,
-        country: countryCode,
-        maxPrice,
-        providerIds: offer.providerId ?? undefined,
-      });
+      /* Grizzly : on IMPOSE le fournisseur premium choisi (providerIds) — PAS
+         de repli vers un fournisseur bon marché.
+
+         HeroSMS : providerId est null et `maxPrice` n'est qu'un PLAFOND, donc
+         l'API servait le numéro le moins cher — des plages recyclées que
+         WhatsApp refuse (8 % de réussite mesurés sur 678 ventes). Le palier de
+         prix avait été testé sans effet (fixedPrice = maxPrice), mais le
+         paramètre `operator`, lui, est bien honoré : vérifié par 4 achats
+         réels, `operator=three` rend du 074xx et `operator=o2` du 078xx, là où
+         un achat sans contrainte tombait sur du 075xx au hasard.
+
+         On tente donc les vrais réseaux du pays, puis — TOUJOURS — l'achat
+         sans contrainte. Un opérateur sans stock ne doit jamais faire échouer
+         une vente : le repli final reproduit exactement l'ancien comportement. */
+      const attempts: Array<string | undefined> = [
+        ...preferredOperators(countryCode),
+        undefined,
+      ];
+      let lastErr: unknown;
+      let got: { activationId: string; phoneNumber: string } | null = null;
+      /* Limite de TEMPS plutôt que de nombre d'essais. Un pays peut avoir
+         quatre réseaux ; les essayer tous à la suite ferait patienter le
+         client sur un écran bloqué si aucun n'a de stock. Passé ce délai on
+         saute directement au repli « sans opérateur », qui a toujours du
+         stock. Le client ne perd donc jamais sa vente NI son temps. */
+      const dateLimite = Date.now() + OPERATOR_TRY_BUDGET_MS;
+      for (const operator of attempts) {
+        if (operator !== undefined && Date.now() > dateLimite) continue;
+        try {
+          got = await grizzly.getNumber({
+            service: serviceCode,
+            country: countryCode,
+            maxPrice,
+            providerIds: offer.providerId ?? undefined,
+            operator,
+          });
+          break;
+        } catch (err) {
+          lastErr = err;
+          // Cet opérateur n'a plus de stock : on passe au suivant. Toute autre
+          // erreur (solde, clé, service) est définitive, on la remonte.
+          const noStock =
+            err instanceof GrizzlyError &&
+            (err.code === "NO_NUMBERS" || err.code === "WRONG_MAX_PRICE");
+          if (noStock && operator !== undefined) continue;
+          throw err;
+        }
+      }
+      if (!got) throw lastErr;
+      acquired = got;
     }
   } catch (e) {
     if (e instanceof OnlineSimError) {
-      const unavailable = ["NO_NUMBER", "NO_NUMBERS", "NO_COUNTRY", "NO_SERVICE"];
-      throw new PurchaseError(
-        unavailable.includes(e.code) ? "UNAVAILABLE" : "PROVIDER",
-        e.message,
-      );
+      const unavailable = [
+        "NO_NUMBER",
+        "NO_NUMBERS",
+        "NO_COUNTRY",
+        "NO_SERVICE",
+      ];
+      if (unavailable.includes(e.code)) {
+        throw new PurchaseError("UNAVAILABLE", e.message);
+      }
+      // Lenteur/rejet ponctuel du fournisseur : message clair + rassurant
+      // (getNum a lieu AVANT le débit -> aucun prélèvement).
+      const friendly =
+        e.code === "NETWORK" || e.code === "TRY_AGAIN_LATER"
+          ? "Le fournisseur est momentanément surchargé. Réessayez dans un instant — vous n'avez pas été débité."
+          : e.message;
+      throw new PurchaseError("PROVIDER", friendly);
     }
     if (e instanceof GrizzlyError) {
       // Prix changé ou stock épuisé entre la consultation et l'achat :
@@ -151,6 +237,7 @@ export async function purchaseNumber(
           priceXof: offer.priceXof,
           costRaw: offer.rawCost,
           status: "WAITING_CODE",
+          verifyType,
           expiresAt: new Date(Date.now() + ACTIVATION_TTL_MIN * 60_000),
         },
       });
@@ -189,6 +276,7 @@ async function refundActivation(
   activation: Activation,
   newStatus: "REFUNDED" | "CANCELLED" | "EXPIRED",
 ): Promise<void> {
+  let rembourse = false;
   await prisma.$transaction(async (db) => {
     const fresh = await db.activation.findUnique({
       where: { id: activation.id },
@@ -208,7 +296,26 @@ async function refundActivation(
       where: { id: activation.id },
       data: { refunded: true, status: newStatus },
     });
+    rembourse = true;
   });
+
+  /* On PRÉVIENT le client. Sans ça, il achète, ne reçoit rien, ferme la page
+     — c'est même ce qu'on lui conseille de faire pendant l'attente — et il
+     ne sait jamais qu'il a été remboursé. De son point de vue le site a pris
+     4 700 F et n'a rien livré. La notification est le seul moyen de le lui
+     dire sans qu'il ait à revenir de lui-même.
+     Hors transaction et best-effort : un envoi raté ne doit jamais empêcher
+     ni annuler le remboursement, qui est déjà en base. */
+  if (rembourse) {
+    pushToUser(activation.userId, {
+      title: "Tu as été remboursé",
+      body: `Pas de code reçu pour ${activation.serviceName ?? activation.serviceCode} · ${activation.countryName ?? ""}. Tes ${activation.priceXof.toLocaleString("fr-FR")} F CFA sont de retour sur ton solde.`,
+      url: "/numbers",
+      tag: `remb-${activation.id}`,
+    }).catch(() => {
+      /* notification best-effort */
+    });
+  }
 }
 
 /**
@@ -225,9 +332,11 @@ export async function refreshActivation(
   if (!activation) return null;
 
   // États terminaux : rien à faire.
-  if (["RECEIVED", "COMPLETED", "CANCELLED", "REFUNDED", "EXPIRED"].includes(
-    activation.status,
-  )) {
+  if (
+    ["RECEIVED", "COMPLETED", "CANCELLED", "REFUNDED", "EXPIRED"].includes(
+      activation.status,
+    )
+  ) {
     return activation;
   }
 
@@ -247,6 +356,7 @@ export async function refreshActivation(
           where: { id: activation.id },
           data: { status: "RECEIVED", smsCode: st.code },
         });
+        notifyCodeReceived(activation.userId, st.code, activation.id);
         onlinesim.finish(activation.providerActivationId).catch(() => {});
         payReferralCommission(
           activation.userId,
@@ -257,6 +367,17 @@ export async function refreshActivation(
       }
     } catch {
       /* erreur transitoire : on réessaiera au prochain poll */
+    }
+    // Expiration sans code : on annule chez OnlineSim et on REMBOURSE, ce qui
+    // débloque le solde du client sans qu'il ait à annuler à la main.
+    if (activation.expiresAt && activation.expiresAt < new Date()) {
+      try {
+        await onlinesim.cancel(activation.providerActivationId);
+      } catch {
+        /* le fournisseur ne facture pas une activation sans SMS reçu */
+      }
+      await refundActivation(activation, "EXPIRED");
+      return prisma.activation.findUnique({ where: { id: activation.id } });
     }
     return prisma.activation.findUnique({ where: { id: activation.id } });
   }
@@ -279,6 +400,7 @@ export async function refreshActivation(
       where: { id: activation.id },
       data: { status: "RECEIVED", smsCode: status.code },
     });
+    notifyCodeReceived(activation.userId, status.code, activation.id);
     // Clore l'activation côté fournisseur (best effort).
     grizzly.finish(activation.providerActivationId).catch(() => {});
     // Commission de parrainage : versée seulement maintenant (code reçu = état
@@ -289,6 +411,31 @@ export async function refreshActivation(
       activation.priceXof,
     ).catch(() => {});
     return updated;
+  }
+
+  // (HeroSMS) getStatus ne voit que le SMS. Le code peut aussi arriver par
+  // APPEL (WhatsApp « appelez-moi ») : on lit getStatusV2.call. Plus fiable sur
+  // les pays où le SMS passe mal (France…).
+  if (usingHeroSms) {
+    try {
+      const v2 = await grizzly.getV2Code(activation.providerActivationId);
+      if (v2?.code) {
+        const updated = await prisma.activation.update({
+          where: { id: activation.id },
+          data: { status: "RECEIVED", smsCode: v2.code },
+        });
+        notifyCodeReceived(activation.userId, v2.code, activation.id);
+        grizzly.finish(activation.providerActivationId).catch(() => {});
+        payReferralCommission(
+          activation.userId,
+          activation.id,
+          activation.priceXof,
+        ).catch(() => {});
+        return updated;
+      }
+    } catch {
+      /* transitoire : on réessaiera au prochain poll */
+    }
   }
 
   if (status.kind === "CANCELLED") {
@@ -320,7 +467,22 @@ export async function cancelActivation(
   });
   if (!activation) return { ok: false, message: "Activation introuvable." };
   if (activation.status !== "WAITING_CODE") {
-    return { ok: false, message: "Cette activation ne peut plus être annulée." };
+    return {
+      ok: false,
+      message: "Cette activation ne peut plus être annulée.",
+    };
+  }
+
+  // Annulation possible seulement après 5 minutes : on laisse le temps au code
+  // d'arriver, et on évite l'abus achat/annulation immédiat.
+  const MIN_CANCEL_MS = 5 * 60_000;
+  const ageMs = Date.now() - activation.createdAt.getTime();
+  if (ageMs < MIN_CANCEL_MS) {
+    const wait = Math.max(1, Math.ceil((MIN_CANCEL_MS - ageMs) / 60_000));
+    return {
+      ok: false,
+      message: `Patientez encore ${wait} min avant d'annuler — le code peut arriver.`,
+    };
   }
 
   if (usingOnlineSim) {
@@ -413,6 +575,30 @@ export async function expireStaleActivations(
     }
   }
   return { processed: stale.length, refunded };
+}
+
+/**
+ * Rembourse les activations expirées d'UN utilisateur (code jamais reçu).
+ * Appelé au chargement de son espace : libère son solde même s'il a fermé la
+ * page de suivi, sans dépendre du cron (limité à 1×/jour sur Vercel Hobby).
+ */
+export async function refundExpiredForUser(userId: string): Promise<number> {
+  const stale = await prisma.activation.findMany({
+    where: { userId, status: "WAITING_CODE", expiresAt: { lt: new Date() } },
+    select: { id: true },
+    take: 20,
+  });
+  let refunded = 0;
+  for (const a of stale) {
+    const updated = await refreshActivation(userId, a.id);
+    if (
+      updated &&
+      (updated.status === "EXPIRED" || updated.status === "REFUNDED")
+    ) {
+      refunded++;
+    }
+  }
+  return refunded;
 }
 
 export function listActivations(userId: string, take = 50) {

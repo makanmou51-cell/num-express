@@ -2,10 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getUserDetail } from "@/lib/admin";
+import { refundExpiredForUser } from "@/lib/activations";
 import { Badge, Card } from "@/components/ui";
-import { StatusBadge } from "@/components/status-badge";
 import { formatXof } from "@/lib/pricing";
-import { AdjustBalanceForm, RoleForm } from "./user-actions";
+import { AdjustBalanceForm, RoleForm, EmailForm } from "./user-actions";
+import { UserActivity } from "./user-activity";
+import { RentalRefundButton } from "./rental-refund-button";
+import { formatWhen } from "@/lib/datetime";
 
 export const metadata: Metadata = { title: "Admin — Utilisateur" };
 
@@ -15,14 +18,22 @@ export default async function AdminUserPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  /* On solde d'abord ses activations expirees : sinon la fiche affiche
+     « En attente du code » sur un numero que le fournisseur a libere depuis
+     longtemps, et l'admin croit a un blocage. Le client, lui, ne declenche
+     ce nettoyage qu'en revenant sur son espace. */
+  await refundExpiredForUser(id);
   const detail = await getUserDetail(id);
   if (!detail) notFound();
-  const { user, transactions, activations } = detail;
+  const { user, transactions, activations, rentals } = detail;
 
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/admin/users" className="text-sm text-primary hover:underline">
+        <Link
+          href="/admin/users"
+          className="text-sm text-primary hover:underline"
+        >
           ← Utilisateurs
         </Link>
         <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold">
@@ -74,53 +85,80 @@ export default async function AdminUserPage({
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="p-5">
-          <h2 className="mb-3 font-semibold">Dernières transactions</h2>
-          {transactions.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted">Aucune.</p>
-          ) : (
-            <ul className="divide-y text-sm">
-              {transactions.map((t) => (
-                <li key={t.id} className="flex items-center justify-between py-2">
-                  <span>
-                    {t.type}
-                    <span className="ml-2 text-xs text-muted">
-                      {new Date(t.createdAt).toLocaleDateString("fr-FR")}
-                    </span>
+      <Card className="space-y-3 p-5">
+        <div>
+          <h2 className="font-semibold">Envoyer un e-mail à ce client</h2>
+          <p className="text-sm text-muted">
+            Le message part vers <strong>{user.email}</strong>. Utilisez{" "}
+            <code>{"{nom}"}</code> pour insérer son prénom automatiquement.
+          </p>
+        </div>
+        <EmailForm userId={user.id} defaultBody={"Bonjour {nom},\n\n"} />
+      </Card>
+
+      {rentals.length > 0 && (
+        <Card className="space-y-3 p-5">
+          <h2 className="font-semibold">Locations (numéros dédiés)</h2>
+          <ul className="divide-y">
+            {rentals.map((r) => {
+              const label =
+                r.status === "ACTIVE"
+                  ? "Actif"
+                  : r.status === "CANCELLED"
+                    ? "Remboursé"
+                    : "Expiré";
+              const cls =
+                r.status === "ACTIVE"
+                  ? "bg-green-100 text-green-800"
+                  : "bg-gray-200 text-gray-600";
+              return (
+                <li key={r.id} className="flex items-center gap-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {r.serviceName ?? r.serviceCode} ·{" "}
+                      {r.countryName ?? r.countryCode}
+                    </p>
+                    <p className="mt-0.5 truncate font-mono text-xs text-muted">
+                      +{r.phoneNumber} · {formatWhen(r.createdAt.toISOString())}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold">
+                    {formatXof(r.priceXof)}
                   </span>
                   <span
-                    className={
-                      t.amount >= 0 ? "text-green-700" : "text-red-600"
-                    }
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}
                   >
-                    {t.amount >= 0 ? "+" : ""}
-                    {formatXof(t.amount)}
+                    {label}
                   </span>
+                  {r.status === "ACTIVE" && <RentalRefundButton id={r.id} />}
                 </li>
-              ))}
-            </ul>
-          )}
+              );
+            })}
+          </ul>
         </Card>
-        <Card className="p-5">
-          <h2 className="mb-3 font-semibold">Dernières activations</h2>
-          {activations.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted">Aucune.</p>
-          ) : (
-            <ul className="divide-y text-sm">
-              {activations.map((a) => (
-                <li key={a.id} className="flex items-center justify-between py-2">
-                  <span>
-                    {a.serviceName ?? a.serviceCode} ·{" "}
-                    {a.countryName ?? a.countryCode}
-                  </span>
-                  <StatusBadge status={a.status} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
+      )}
+
+      <UserActivity
+        transactions={transactions.map((t) => ({
+          id: t.id,
+          type: t.type,
+          amount: t.amount,
+          status: t.status,
+          createdAt: t.createdAt.toISOString(),
+          activationId: t.activationId,
+        }))}
+        activations={activations.map((a) => ({
+          id: a.id,
+          serviceCode: a.serviceCode,
+          serviceName: a.serviceName,
+          countryName: a.countryName,
+          countryCode: a.countryCode,
+          status: a.status,
+          smsCode: a.smsCode,
+          priceXof: a.priceXof,
+          createdAt: a.createdAt.toISOString(),
+        }))}
+      />
     </div>
   );
 }
