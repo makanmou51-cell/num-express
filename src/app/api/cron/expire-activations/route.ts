@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { env } from "@/lib/env";
 import { expireStaleActivations } from "@/lib/activations";
 import { resumePendingBroadcast } from "@/lib/broadcast";
+import { sweepPendingBoosts } from "@/lib/boost/orders";
 
 export const runtime = "nodejs";
 // Deux tâches dans le même appel (voir plus bas) : il faut la durée maximale.
@@ -38,6 +39,16 @@ async function handle(req: Request) {
   const debut = Date.now();
   const result = await expireStaleActivations();
 
+  /* Commandes Boost : meme probleme que les activations. Leur statut n'etait
+     mis a jour qu'au retour du client sur /boost ; une commande annulee par
+     Peakerr n'etait donc JAMAIS remboursee si le client ne revenait pas. */
+  let boosts = null;
+  try {
+    boosts = await sweepPendingBoosts({ limit: 60, deadlineMs: 15_000 });
+  } catch (e) {
+    console.error("[cron] balayage boost echoue :", (e as Error).message);
+  }
+
   /* Reprise de la diffusion e-mail en cours.
      Elle est greffée ICI, et pas dans un cron dédié, parce que le plan Vercel
      Hobby n'autorise que deux tâches planifiées — toutes deux déjà utilisées.
@@ -60,7 +71,7 @@ async function handle(req: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true, ...result, diffusion });
+  return NextResponse.json({ ok: true, ...result, boosts, diffusion });
 }
 
 export const GET = handle;
