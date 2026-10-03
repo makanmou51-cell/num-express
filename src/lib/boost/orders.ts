@@ -110,21 +110,22 @@ export async function placeBoostOrder(
 async function refundBoost(bo: BoostOrder): Promise<void> {
   let rembourse = false;
   await prisma.$transaction(async (db) => {
-    const fresh = await db.boostOrder.findUnique({
-      where: { id: bo.id },
-      select: { refunded: true },
+    /* Revendication atomique AVANT de crediter. Le « lire puis decider »
+       qui etait ici laissait deux appels simultanes crediter chacun le
+       solde : meme bug que sur les activations, ou une seule activation a
+       ete remboursee 21 fois. updateMany avec refunded:false dans le WHERE
+       garantit qu'un seul appel voit count === 1. */
+    const claim = await db.boostOrder.updateMany({
+      where: { id: bo.id, refunded: false },
+      data: { refunded: true, status: "REFUNDED" },
     });
-    if (!fresh || fresh.refunded) return;
+    if (claim.count === 0) return; // deja rembourse par un appel concurrent
     await applyWalletTx({
       userId: bo.userId,
       type: "REFUND",
       amount: bo.priceXof,
       description: `Remboursement · ${bo.serviceLabel}`,
       client: db,
-    });
-    await db.boostOrder.update({
-      where: { id: bo.id },
-      data: { refunded: true, status: "REFUNDED" },
     });
     rembourse = true;
   });

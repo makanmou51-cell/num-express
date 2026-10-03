@@ -271,18 +271,45 @@ export async function purchaseNumber(
   }
 }
 
-/** Rembourse une activation (idempotent : ne rembourse qu'une fois). */
+/**
+ * Rembourse une activation. UNE SEULE FOIS, quoi qu'il arrive.
+ *
+ * ── Le bug que ce code corrige (constaté en production le 2026-10-03) ──
+ * La version précédente lisait `refunded` puis décidait :
+ *
+ *     const fresh = await db.activation.findUnique(...)   // lecture
+ *     if (fresh.refunded) return;                          // décision
+ *     await applyWalletTx(...)                             // crédit
+ *
+ * C'est un « teste-puis-agis » SANS VERROU. PostgreSQL tourne en READ
+ * COMMITTED : deux appels simultanés lisent tous les deux `refunded: false`,
+ * et CHACUN crédite le solde. Or ces appels sont simultanés par conception —
+ * `refundExpiredForUser` tourne sur /dashboard, sur /numbers, sur la fiche
+ * admin, pendant que la page de suivi interroge `refreshActivation` toutes
+ * les trois secondes, et que le cron balaye.
+ *
+ * Résultat réel : une activation remboursée VINGT ET UNE FOIS, 80 achats pour
+ * 100 remboursements sur un seul compte, et ~94 000 F CFA créés à partir de
+ * rien. Le même piège était déjà documenté et correctement traité dans
+ * `confirmTopup` (paiements) — il ne l'était pas ici.
+ *
+ * La parade : REVENDIQUER avant de créditer. `updateMany` avec
+ * `refunded: false` dans le WHERE est un compare-and-swap atomique — la base
+ * garantit qu'un seul appel voit `count === 1`. Tous les autres voient 0 et
+ * repartent sans rien faire.
+ */
 async function refundActivation(
   activation: Activation,
   newStatus: "REFUNDED" | "CANCELLED" | "EXPIRED",
 ): Promise<void> {
   let rembourse = false;
   await prisma.$transaction(async (db) => {
-    const fresh = await db.activation.findUnique({
-      where: { id: activation.id },
-      select: { refunded: true },
+    // Revendication atomique : un seul appel peut passer d'ici.
+    const claim = await db.activation.updateMany({
+      where: { id: activation.id, refunded: false },
+      data: { refunded: true, status: newStatus },
     });
-    if (!fresh || fresh.refunded) return;
+    if (claim.count === 0) return; // déjà remboursée par un appel concurrent
 
     await applyWalletTx({
       userId: activation.userId,
@@ -291,10 +318,6 @@ async function refundActivation(
       description: `Remboursement · ${activation.serviceName ?? activation.serviceCode}`,
       activationId: activation.id,
       client: db,
-    });
-    await db.activation.update({
-      where: { id: activation.id },
-      data: { refunded: true, status: newStatus },
     });
     rembourse = true;
   });

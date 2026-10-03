@@ -40,6 +40,30 @@
  * améliore la QUALITÉ et la DISPONIBILITÉ du numéro, pas le taux WhatsApp.
  */
 
+/**
+ * INTERRUPTEUR — désactivé par défaut depuis le 2026-10-03.
+ *
+ * Michael constate que ses clients ne reçoivent plus du tout leur code et
+ * demande le retour à « au hasard ». Décision prise sur ses ventes réelles,
+ * et l'historique lui donne raison de se méfier :
+ *
+ *   · 8 %  avant toute sélection d'opérateur ;
+ *   · 10 % avec 2 vrais réseaux par pays, puis repli « au hasard » ;
+ *   · le 30/09 la liste est passée à 143 opérateurs sur 24 pays, en y
+ *     ajoutant lebara, lycamobile, ortel_mobile — des opérateurs VIRTUELS.
+ *
+ * C'est là qu'est l'erreur : avant, un pays sans stock chez Telekom ou
+ * Vodafone retombait AUSSITÔT sur « au hasard ». Depuis, il passe d'abord par
+ * ces plages de revente, précisément celles que WhatsApp refuse le plus. La
+ * tentative censée améliorer la qualité a pu la dégrader.
+ *
+ * Pour réactiver : poser OPERATOR_SELECTION=on dans l'environnement. La carte
+ * ci-dessous est conservée intacte — elle a demandé un relevé complet de
+ * getOperators sur 24 pays, et elle resservira si on veut retenter, mais
+ * alors avec les seuls réseaux nationaux et des mesures avant/après.
+ */
+const SELECTION_ACTIVE = process.env.OPERATOR_SELECTION?.trim() === "on";
+
 /** Identifiants pays HeroSMS (protocole sms-activate). */
 const PREFERRED: Record<string, readonly string[]> = {
   // ── Royaume-Uni ──
@@ -186,5 +210,6 @@ const PREFERRED: Record<string, readonly string[]> = {
  * achat, qui empêche de faire patienter le client (voir `purchaseNumber`).
  */
 export function preferredOperators(countryCode: string): readonly string[] {
+  if (!SELECTION_ACTIVE) return [];
   return PREFERRED[countryCode] ?? [];
 }
