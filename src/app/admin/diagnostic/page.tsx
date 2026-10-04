@@ -14,6 +14,7 @@ import { Suspense } from "react";
 import { RentalsProbe } from "./rentals-probe";
 import { FlashCallProbe } from "./flashcall-probe";
 import { TopCountriesProbe } from "./top-countries";
+import { RestApiProbe } from "./rest-api-probe";
 
 export const metadata: Metadata = { title: "Admin — Diagnostic Grizzly" };
 export const dynamic = "force-dynamic";
@@ -73,6 +74,20 @@ export default async function GrizzlyDiagnosticPage() {
           Vérification en direct de la connexion aux API fournisseurs.
         </p>
       </div>
+
+      {/* API REST moderne de HeroSMS : la piste la plus prometteuse depuis
+          aout - elle pourrait donner acces au premium « Mon prix ». */}
+      <Suspense
+        fallback={
+          <Card className="p-5">
+            <p className="text-sm text-muted">
+              Interrogation de l&apos;API REST HeroSMS…
+            </p>
+          </Card>
+        }
+      >
+        <RestApiProbe />
+      </Suspense>
 
       {/* Sonde location : montre, duree par duree, ce qu'on peut reellement
           vendre. Repond a « pourquoi la page d'achat dit Indisponible ».

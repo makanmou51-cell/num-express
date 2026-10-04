@@ -318,6 +318,59 @@ const liveGrizzly = {
   },
 
   /**
+   * SONDE de l'API REST moderne de HeroSMS — `https://hero-sms.com/api/v1`.
+   *
+   * Découverte le 2026-10-04 : HeroSMS expose DEUX API. num express n'utilise
+   * que l'ancienne (`stubs/handler_api.php`, protocole sms-activate). La
+   * nouvelle, documentée en OpenAPI 3.2, propose notamment « Recevoir des
+   * offres d'activation » — potentiellement l'accès au premium « Mon prix »,
+   * resté inaccessible par l'ancienne API et soupçonné d'être la cause des
+   * 8 % de réussite WhatsApp.
+   *
+   * Le schéma d'authentification n'est pas documenté publiquement : on essaie
+   * les trois conventions usuelles et on retient celle qui répond. Lecture
+   * seule — aucun achat.
+   */
+  async probeRest(
+    path: string,
+  ): Promise<Array<{ auth: string; status: number; body: string }>> {
+    const { apiKey } = providerTarget();
+    if (!apiKey) {
+      return [{ auth: "—", status: 0, body: "Clé API fournisseur absente." }];
+    }
+    const url = `https://hero-sms.com/api/v1${path}`;
+    const schemas: Array<[string, Record<string, string>]> = [
+      ["Bearer", { Authorization: `Bearer ${apiKey}` }],
+      ["X-Api-Key", { "X-Api-Key": apiKey }],
+      ["api_key (query)", {}],
+    ];
+    const out: Array<{ auth: string; status: number; body: string }> = [];
+    for (const [nom, headers] of schemas) {
+      const cible =
+        nom === "api_key (query)"
+          ? `${url}${url.includes("?") ? "&" : "?"}api_key=${encodeURIComponent(apiKey)}`
+          : url;
+      try {
+        const res = await fetch(cible, {
+          headers: { Accept: "application/json", ...headers },
+          signal: AbortSignal.timeout(12_000),
+        });
+        out.push({
+          auth: nom,
+          status: res.status,
+          body: (await res.text()).slice(0, 1500),
+        });
+      } catch (e) {
+        out.push({ auth: nom, status: 0, body: (e as Error).message });
+      }
+      // Inutile d'insister si une convention a déjà été acceptée.
+      if (out[out.length - 1].status === 200) break;
+      await new Promise((r) => setTimeout(r, 600));
+    }
+    return out;
+  },
+
+  /**
    * Prix DÉTAILLÉS par fournisseur (paliers). Permet de viser un palier haut
    * — les fournisseurs premium délivrent le code beaucoup plus vite que le
    * palier « from » renvoyé par getPrices.
@@ -617,6 +670,10 @@ const mockGrizzly: typeof liveGrizzly = {
       ok: false,
       body: `[mode simulé] action « ${action} » non appelée`,
     };
+  },
+
+  async probeRest(path: string) {
+    return [{ auth: "—", status: 0, body: `[mode simulé] ${path} non appelé` }];
   },
 
   async getPrices(opts: { service?: string; country?: string } = {}) {
