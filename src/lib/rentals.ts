@@ -537,10 +537,33 @@ async function finishRentalRefund(
   rental: Rental,
   label: string,
 ): Promise<{ ok: boolean; message?: string }> {
-  try {
-    await grizzly.cancel(rental.providerRentId);
-  } catch {
-    /* HeroSMS a refusé : on rembourse quand même le client chez nous */
+  /* On insiste. Un seul essai suffisait à perdre 3 $ : HeroSMS refuse une
+     annulation jugée trop précoce, et le refus était avalé en silence. Trois
+     tentatives espacées couvrent le cas limite où le client clique à la
+     seconde près. Le client est remboursé dans TOUS les cas — on ne lui fait
+     pas payer un désaccord entre nous et le fournisseur — mais un échec
+     definitif est désormais journalisé, pas ignoré. */
+  let annuleChezFournisseur = false;
+  for (let essai = 1; essai <= 3; essai++) {
+    try {
+      await grizzly.cancel(rental.providerRentId);
+      annuleChezFournisseur = true;
+      break;
+    } catch (e) {
+      if (essai === 3) {
+        console.error(
+          "[location] annulation refusée par HeroSMS après 3 essais —",
+          "le numéro reste facturé :",
+          rental.providerRentId,
+          (e as Error).message,
+        );
+      } else {
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+    }
+  }
+  if (annuleChezFournisseur) {
+    console.log("[location] annulée chez HeroSMS :", rental.providerRentId);
   }
   await prisma.$transaction(async (db) => {
     /* Revendication atomique : le statut SERT de verrou, mais il faut le
@@ -578,8 +601,14 @@ export async function cancelRental(
   if (rental.status !== "ACTIVE") {
     return { ok: false, message: "Cette location ne peut plus être annulée." };
   }
-  // HeroSMS n'autorise l'annulation qu'~2 min après l'achat : on aligne à 1 min 50.
-  const MIN_CANCEL_MS = 110_000;
+  /* HeroSMS n'accepte une annulation qu'à partir de ~120 s. Ce seuil était
+     réglé à 110 s « pour s'aligner » — soit 10 secondes TROP TÔT. Le client
+     annulait, HeroSMS refusait, l'erreur était avalée, le client remboursé…
+     et num express continuait de payer un numéro que plus personne n'utilise.
+     Constaté le 2026-10-04 : quatre locations allemandes annulées à 2 min
+     pile, deux encore « En attente de SMS » chez HeroSMS, 3 $ perdus chacune.
+     On passe au-dessus du seuil, avec une marge. */
+  const MIN_CANCEL_MS = 125_000;
   const ageMs = Date.now() - rental.createdAt.getTime();
   if (ageMs < MIN_CANCEL_MS) {
     const wait = Math.max(1, Math.ceil((MIN_CANCEL_MS - ageMs) / 1000));
