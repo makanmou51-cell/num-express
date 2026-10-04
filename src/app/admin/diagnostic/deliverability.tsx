@@ -1,6 +1,10 @@
 import { Card } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { grizzly } from "@/lib/grizzly/client";
+import {
+  preferredOperators,
+  operatorSelectionActive,
+} from "@/lib/grizzly/operators";
 import { unstable_cache } from "next/cache";
 
 /**
@@ -132,6 +136,16 @@ export async function DeliverabilityPanel({
   const nbVentes = new Map(ventes.map((v) => [v.countryCode, v._count._all]));
   const nbRecus = new Map(recus.map((v) => [v.countryCode, v._count._all]));
 
+  /* Ce qui sera REELLEMENT impose a l'achat. On le calcule ici pour que
+     Michael le voie AVANT la premiere vente, au lieu de le decouvrir dans
+     les resultats une semaine plus tard - c'est ce qui s'est passe en
+     septembre avec la carte ecrite a la main. */
+  const imposes = new Map<string, readonly string[]>();
+  for (const p of liste) {
+    const id = String(p.country);
+    imposes.set(id, await preferredOperators(service, id));
+  }
+
   const lignes = liste.map((p) => {
     const code = String(p.country);
     const v = nbVentes.get(code) ?? 0;
@@ -142,6 +156,7 @@ export async function DeliverabilityPanel({
       eux: p.successRate,
       ventes: v,
       nous: v >= 5 ? Math.round((r / v) * 100) : null,
+      imposes: imposes.get(code) ?? [],
       operateurs: (p.operators ?? [])
         .slice()
         .sort((a, b) => b.successRate - a.successRate)
@@ -161,6 +176,28 @@ export async function DeliverabilityPanel({
         réussite du simple au quintuple.
       </p>
 
+      <p
+        className={`mt-3 rounded-lg px-3 py-2 text-sm ${
+          operatorSelectionActive
+            ? "bg-green-50 text-green-900"
+            : "bg-gray-100 text-muted"
+        }`}
+      >
+        {operatorSelectionActive ? (
+          <>
+            <strong>Sélection d&apos;opérateur ACTIVE.</strong> La colonne
+            «&nbsp;Imposé&nbsp;» indique ce qui sera réellement demandé à
+            l&apos;achat. Un pays sans opérateur imposé est acheté librement.
+          </>
+        ) : (
+          <>
+            <strong>Sélection d&apos;opérateur désactivée.</strong> Tous les
+            achats se font sans contrainte. Poser{" "}
+            <code>OPERATOR_SELECTION=on</code> pour l&apos;activer.
+          </>
+        )}
+      </p>
+
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
@@ -169,6 +206,7 @@ export async function DeliverabilityPanel({
               <th className="pb-1 text-right font-medium">Eux</th>
               <th className="pb-1 text-right font-medium">Nous</th>
               <th className="pb-1 text-right font-medium">Nos ventes</th>
+              <th className="pb-1 pl-4 font-medium">Imposé à l&apos;achat</th>
               <th className="pb-1 pl-4 font-medium">
                 Meilleurs opérateurs (taux · part)
               </th>
@@ -198,6 +236,15 @@ export async function DeliverabilityPanel({
                 </td>
                 <td className="py-1.5 text-right tabular-nums text-muted">
                   {l.ventes || "—"}
+                </td>
+                <td className="py-1.5 pl-4 text-xs font-semibold">
+                  {l.imposes.length ? (
+                    <span className="text-green-700">
+                      {l.imposes.join(" → ")}
+                    </span>
+                  ) : (
+                    <span className="text-muted">libre</span>
+                  )}
                 </td>
                 <td className="py-1.5 pl-4 text-xs text-muted">
                   {l.operateurs.length
