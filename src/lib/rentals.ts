@@ -609,12 +609,31 @@ export async function cancelRental(
      pile, deux encore « En attente de SMS » chez HeroSMS, 3 $ perdus chacune.
      On passe au-dessus du seuil, avec une marge. */
   const MIN_CANCEL_MS = 125_000;
+  /* Borne HAUTE, qui manquait. HeroSMS l'affiche noir sur blanc sur sa propre
+     page d'achat : « Vous pouvez annuler la location dans les 20 minutes si le
+     code n'est pas reçu. Passé ce délai, aucun remboursement ne sera
+     possible. » Sans cette borne, un client annulait à la 24e minute : num
+     express le remboursait intégralement pendant que HeroSMS gardait l'argent.
+     Chaque annulation tardive coûtait donc le prix entier du numéro.
+     Le client n'est pas lésé pour autant : il garde le numéro TOUTE la durée
+     achetée et peut continuer à demander son code — ce qui est précisément
+     l'intérêt d'une location par rapport à un numéro jetable. */
+  const MAX_CANCEL_MS = 20 * 60_000;
   const ageMs = Date.now() - rental.createdAt.getTime();
   if (ageMs < MIN_CANCEL_MS) {
     const wait = Math.max(1, Math.ceil((MIN_CANCEL_MS - ageMs) / 1000));
     return {
       ok: false,
       message: `Patientez encore ${wait} s avant d'annuler (le code peut encore arriver).`,
+    };
+  }
+  if (ageMs > MAX_CANCEL_MS) {
+    return {
+      ok: false,
+      message:
+        "Le délai d'annulation de 20 minutes est passé. Ce numéro reste à vous " +
+        "pour toute la durée achetée : vous pouvez continuer à demander votre " +
+        "code dessus, autant de fois que nécessaire.",
     };
   }
   // On relit en direct : évite qu'un client annule juste après avoir reçu son code.
@@ -638,5 +657,22 @@ export async function adminRefundRental(
   if (rental.status !== "ACTIVE") {
     return { ok: false, message: "Location déjà terminée ou remboursée." };
   }
-  return finishRentalRefund(rental, "Remboursement location (admin)");
+
+  /* L'admin peut TOUJOURS rembourser — un geste commercial ne se discute pas.
+     Mais il doit savoir ce que ça lui coûte : passé 20 minutes, HeroSMS ne
+     rend rien, et le remboursement sort entièrement de notre poche. */
+  const ageMs = Date.now() - rental.createdAt.getTime();
+  const horsFenetre = ageMs > 20 * 60_000;
+  const r = await finishRentalRefund(rental, "Remboursement location (admin)");
+  if (r.ok && horsFenetre) {
+    const minutes = Math.round(ageMs / 60_000);
+    return {
+      ok: true,
+      message:
+        `Client remboursé. Attention : la location a ${minutes} min, au-delà de ` +
+        `la fenêtre de 20 min de HeroSMS — ce remboursement sort de ta poche, ` +
+        `le fournisseur ne rendra rien.`,
+    };
+  }
+  return r;
 }

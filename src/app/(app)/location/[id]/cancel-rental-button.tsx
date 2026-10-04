@@ -10,6 +10,11 @@ import { cancelRentalAction } from "../actions";
    declenchait un remboursement que le fournisseur refusait, et num express
    restait avec un numero facture sur les bras. */
 const MIN_CANCEL_MS = 125_000; // 2 min 05 s
+/* Fenetre HAUTE, alignee sur HeroSMS : « Vous pouvez annuler la location dans
+   les 20 minutes si le code n'est pas recu. Passe ce delai, aucun
+   remboursement ne sera possible. » On affiche la verite au client plutot que
+   de lui proposer un bouton qui echouera. */
+const MAX_CANCEL_MS = 20 * 60_000;
 
 /**
  * Annulation + remboursement d'une location.
@@ -53,6 +58,7 @@ export function CancelRentalButton({
   }, [wait]);
 
   const locked = wait > 0;
+  const expired = Date.now() - new Date(createdAt).getTime() > MAX_CANCEL_MS;
   // Part de l'attente déjà écoulée : la barre se remplit sous ses yeux.
   const progress = locked
     ? Math.min(100, 100 - (wait * 1000 * 100) / MIN_CANCEL_MS)
@@ -115,13 +121,32 @@ export function CancelRentalButton({
     );
   }
 
+  /* Au-dela de 20 min, le fournisseur ne rembourse plus : proposer le bouton
+     reviendrait a promettre un remboursement qu'on ne peut pas tenir. On dit
+     ce que le client PEUT encore faire — garder son numero et reessayer. */
+  if (expired) {
+    return (
+      <div className="rounded-2xl border border-border bg-gray-50 p-4">
+        <p className="text-sm font-semibold">
+          Le délai d&apos;annulation est passé
+        </p>
+        <p className="mt-1 text-sm text-muted">
+          Ce numéro reste à vous pour toute la durée achetée. Vous pouvez
+          continuer à demander votre code dessus, autant de fois qu&apos;il le
+          faut — c&apos;est tout l&apos;intérêt d&apos;un numéro dédié.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-2">
       {/* L'explication passe AU-DESSUS du bouton : en dessous, elle tombait
           souvent hors de l'écran sur un téléphone. */}
       <p className="text-sm text-muted">
-        Pas de code reçu&nbsp;? Vous pouvez annuler <strong>1 min 50 s</strong>{" "}
-        après l&apos;achat et être remboursé immédiatement.
+        Pas de code reçu&nbsp;? Vous pouvez annuler <strong>2 minutes</strong>{" "}
+        après l&apos;achat et être remboursé immédiatement — vous avez{" "}
+        <strong>20 minutes</strong> pour le faire.
       </p>
 
       {locked && (
