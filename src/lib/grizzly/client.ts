@@ -339,9 +339,12 @@ const liveGrizzly = {
       return [{ auth: "—", status: 0, body: "Clé API fournisseur absente." }];
     }
     const url = `https://hero-sms.com/api/v1${path}`;
+    /* La spec OpenAPI le dit noir sur blanc : securitySchemes.apiKeyAuth,
+       « Format : ApiKey {votre_token} », en-tête Authorization. Ni Bearer,
+       ni X-Api-Key. On garde les autres en repli au cas où. */
     const schemas: Array<[string, Record<string, string>]> = [
+      ["ApiKey", { Authorization: `ApiKey ${apiKey}` }],
       ["Bearer", { Authorization: `Bearer ${apiKey}` }],
-      ["X-Api-Key", { "X-Api-Key": apiKey }],
       ["api_key (query)", {}],
     ];
     const out: Array<{ auth: string; status: number; body: string }> = [];
@@ -368,6 +371,50 @@ const liveGrizzly = {
       await new Promise((r) => setTimeout(r, 600));
     }
     return out;
+  },
+
+  /**
+   * DÉLIVRABILITÉ mesurée par HeroSMS, par pays et par opérateur.
+   *
+   * `GET /stats/deliverability` de leur API REST. C'est la donnée qui
+   * manquait depuis le début : num express trie son catalogue par STOCK, ce
+   * qui met un badge « Fiable » sur les Pays-Bas (3 % de réussite réelle) et
+   * enterre le Canada (60 %). Ici le fournisseur publie lui-même le taux, et
+   * le détaille par opérateur — de quoi remplacer la carte d'opérateurs
+   * devinée à la main, qui avait dégradé les résultats fin septembre.
+   *
+   * `successCount` filtre sur le VOLUME de réussites, pas sur le taux :
+   * « low » = au moins 50, et c'est le plus large — on le prend pour ne pas
+   * amputer la liste des pays.
+   */
+  async getDeliverability(opts: {
+    service: string;
+    withOperators?: boolean;
+    size?: number;
+  }): Promise<unknown> {
+    const { apiKey } = providerTarget();
+    if (!apiKey) throw new GrizzlyError("BAD_KEY", "Clé API absente.");
+    const url = new URL("https://hero-sms.com/api/v1/stats/deliverability");
+    url.searchParams.set("services[]", opts.service);
+    url.searchParams.set("interval", "24");
+    url.searchParams.set("successCount", "low");
+    url.searchParams.set("size", String(opts.size ?? 25));
+    if (opts.withOperators) url.searchParams.set("withOperators", "true");
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `ApiKey ${apiKey}`,
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+    const texte = await res.text();
+    if (!res.ok) {
+      throw new GrizzlyError(
+        "UNKNOWN",
+        `HTTP ${res.status} — ${texte.slice(0, 300)}`,
+      );
+    }
+    return JSON.parse(texte);
   },
 
   /**
@@ -674,6 +721,10 @@ const mockGrizzly: typeof liveGrizzly = {
 
   async probeRest(path: string) {
     return [{ auth: "—", status: 0, body: `[mode simulé] ${path} non appelé` }];
+  },
+
+  async getDeliverability() {
+    return { data: {}, meta: {} };
   },
 
   async getPrices(opts: { service?: string; country?: string } = {}) {

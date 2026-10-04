@@ -12,9 +12,8 @@ import {
 import { usingOnlineSim, usingHeroSms } from "@/lib/grizzly/catalog";
 import { Suspense } from "react";
 import { RentalsProbe } from "./rentals-probe";
-import { FlashCallProbe } from "./flashcall-probe";
-import { TopCountriesProbe } from "./top-countries";
 import { RestApiProbe } from "./rest-api-probe";
+import { DeliverabilityPanel } from "./deliverability";
 
 export const metadata: Metadata = { title: "Admin — Diagnostic Grizzly" };
 export const dynamic = "force-dynamic";
@@ -75,6 +74,20 @@ export default async function GrizzlyDiagnosticPage() {
         </p>
       </div>
 
+      {/* LA donnee qu'on cherchait : la delivrabilite publiee par HeroSMS,
+          par pays ET par operateur. En premier, c'est le plus important. */}
+      <Suspense
+        fallback={
+          <Card className="p-5">
+            <p className="text-sm text-muted">
+              Lecture de la délivrabilité HeroSMS…
+            </p>
+          </Card>
+        }
+      >
+        <DeliverabilityPanel service="wa" />
+      </Suspense>
+
       {/* API REST moderne de HeroSMS : la piste la plus prometteuse depuis
           aout - elle pourrait donner acces au premium « Mon prix ». */}
       <Suspense
@@ -107,31 +120,9 @@ export default async function GrizzlyDiagnosticPage() {
 
       {/* Sonde FlashCall : dit si l'option « Appel » peut etre un vrai produit
           ou si elle restera cosmetique. Sous Suspense, comme la precedente. */}
-      <Suspense
-        fallback={
-          <Card className="p-5">
-            <p className="text-sm text-muted">
-              Interrogation du FlashCall chez HeroSMS…
-            </p>
-          </Card>
-        }
-      >
-        <FlashCallProbe />
-      </Suspense>
 
       {/* Le « top pays » de HeroSMS confronte a nos taux reels : un classement
           fournisseur ne vaut que s'il predit ce qui se passe chez nous. */}
-      <Suspense
-        fallback={
-          <Card className="p-5">
-            <p className="text-sm text-muted">
-              Comparaison du classement HeroSMS avec nos taux…
-            </p>
-          </Card>
-        }
-      >
-        <TopCountriesProbe service="wa" />
-      </Suspense>
 
       <Alert variant={usingOnlineSim ? "info" : "success"}>
         <strong>Fournisseur ACTIF : {PROVIDER_LABEL}</strong> — c'est lui qui
