@@ -24,43 +24,46 @@ const SONDES: ReadonlyArray<{
   quoi: string;
 }> = [
   {
-    action: "getPricesVerification",
+    action: "getTopCountriesByService",
     params: { service: "wa" },
-    quoi: "Prix de la vérification par appel (FlashCall), service WhatsApp",
+    quoi: "LE CLASSEMENT : pays les plus performants pour WhatsApp, selon HeroSMS",
+  },
+  {
+    action: "getTopCountriesByService",
+    params: { service: "wa", freePrice: "true" },
+    quoi: "Même classement, variante avec prix libre",
   },
   {
     action: "getPricesVerification",
-    quoi: "Prix de la vérification par appel, tous services",
+    params: { service: "wa" },
+    quoi: "Prix FlashCall — déjà tranché : « Method Not Found »",
   },
   {
     action: "getPrices",
     params: { service: "wa", country: "43" },
     quoi: "Référence : prix SMS Allemagne (doit répondre)",
   },
-  {
-    action: "getTopCountriesByService",
-    params: { service: "wa" },
-    quoi: "Pays les plus performants pour WhatsApp",
-  },
-  {
-    action: "getActiveActivations",
-    quoi: "Activations en cours (expose le type de vérification)",
-  },
 ];
 
 export async function FlashCallProbe() {
-  const resultats = await Promise.all(
-    SONDES.map(async (s) => ({
+  /* En SERIE, espacees. Le premier passage avait lance les cinq appels
+     simultanement et HeroSMS avait repondu 429 RATE_LIMIT sur l'un d'eux —
+     une limite de debit, pas un refus. On aurait conclu a tort que l'action
+     n'existait pas. */
+  const resultats: Array<
+    (typeof SONDES)[number] & { r: { ok: boolean; body: string } }
+  > = [];
+  for (const s of SONDES) {
+    resultats.push({
       ...s,
       r: await grizzly.probeRaw(s.action, s.params ?? {}),
-    })),
-  );
+    });
+    await new Promise((r) => setTimeout(r, 1200));
+  }
 
   return (
     <Card className="p-5">
-      <h2 className="font-bold">
-        FlashCall — est-ce achetable par l&apos;API ?
-      </h2>
+      <h2 className="font-bold">Ce que l&apos;API HeroSMS expose vraiment</h2>
       <p className="mt-1 text-sm text-muted">
         Interrogé en direct chez HeroSMS, en lecture seule. Aucun numéro
         n&apos;est acheté, ton solde n&apos;est pas touché.
@@ -71,16 +74,20 @@ export async function FlashCallProbe() {
           /* Une clé refusée ou une action inconnue se reconnaît au corps de la
              réponse, pas au code HTTP : HeroSMS répond 200 avec BAD_ACTION. */
           const corps = x.r.body.trim();
+          const limite = /RATE_LIMIT|429/i.test(corps);
           const refus =
-            !x.r.ok ||
-            /BAD_ACTION|BAD_KEY|NO_KEY|ERROR_SQL|Unauthorized/i.test(corps);
+            !limite &&
+            (!x.r.ok ||
+              /BAD_ACTION|BAD_KEY|NO_KEY|ERROR_SQL|Unauthorized/i.test(corps));
           return (
             <div
               key={`${x.action}-${i}`}
               className={`rounded-lg border p-3 ${
-                refus
-                  ? "border-border bg-gray-50"
-                  : "border-green-300 bg-green-50"
+                limite
+                  ? "border-amber-300 bg-amber-50"
+                  : refus
+                    ? "border-border bg-gray-50"
+                    : "border-green-300 bg-green-50"
               }`}
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -94,12 +101,14 @@ export async function FlashCallProbe() {
                 </code>
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    refus
-                      ? "bg-gray-200 text-gray-700"
-                      : "bg-green-600 text-white"
+                    limite
+                      ? "bg-amber-500 text-white"
+                      : refus
+                        ? "bg-gray-200 text-gray-700"
+                        : "bg-green-600 text-white"
                   }`}
                 >
-                  {refus ? "refusé" : "répond"}
+                  {limite ? "trop de requêtes" : refus ? "refusé" : "répond"}
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-muted">{x.quoi}</p>
