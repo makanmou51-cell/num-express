@@ -754,27 +754,47 @@ export function BuyWizard({
 
                 {affordable ? (
                   isRental ? (
-                    <form action={rentAction}>
-                      <input
-                        type="hidden"
-                        name="service"
-                        value={service.code}
-                      />
-                      <input
-                        type="hidden"
-                        name="country"
-                        value={country.code}
-                      />
-                      <input type="hidden" name="duration" value={duration} />
-                      <SubmitButton
-                        variant="accent"
-                        size="lg"
-                        className="w-full"
-                        pendingLabel="Location en cours…"
-                      >
-                        Louer ce numéro
-                      </SubmitButton>
-                    </form>
+                    <>
+                      {/* La règle de remboursement, AVANT de payer.
+                          HeroSMS l'affiche sur sa propre page d'achat ; nous
+                          la cachions jusqu'au moment de l'annulation, quand
+                          il était trop tard. Un client qui découvre une règle
+                          après avoir payé la vit comme un piège — même quand
+                          elle est honnête. Elle est donc ici, au-dessus du
+                          bouton, pas dans des conditions générales. */}
+                      <div className="mb-3 flex gap-2.5 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                        <IconWarn className="mt-0.5 h-4 w-4 shrink-0" />
+                        <p>
+                          <strong>20 minutes pour annuler.</strong> Si le code
+                          n&apos;arrive pas, annulez dans les 20 minutes et vous
+                          êtes remboursé immédiatement. Passé ce délai, plus de
+                          remboursement possible&nbsp;: le numéro reste à vous
+                          pour toute la durée, et vous pouvez continuer à
+                          demander votre code dessus.
+                        </p>
+                      </div>
+                      <form action={rentAction}>
+                        <input
+                          type="hidden"
+                          name="service"
+                          value={service.code}
+                        />
+                        <input
+                          type="hidden"
+                          name="country"
+                          value={country.code}
+                        />
+                        <input type="hidden" name="duration" value={duration} />
+                        <SubmitButton
+                          variant="accent"
+                          size="lg"
+                          className="w-full"
+                          pendingLabel="Location en cours…"
+                        >
+                          Louer ce numéro
+                        </SubmitButton>
+                      </form>
+                    </>
                   ) : (
                     <form action={purchaseAction}>
                       <input
