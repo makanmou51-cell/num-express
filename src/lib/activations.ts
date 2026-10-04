@@ -44,7 +44,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * Best-effort et non bloquant : un échec d'envoi ne doit jamais empêcher
  * l'enregistrement du code ni la suite du traitement.
  */
-function notifyCodeReceived(
+export function notifyCodeReceived(
   userId: string,
   code: string,
   activationId: string,
@@ -131,6 +131,10 @@ export async function purchaseNumber(
    *  stock et retomber sur un SMS). Déclaré ici pour rester lisible au moment
    *  d'enregistrer l'activation, bien plus bas. */
   let modeObtenu: "call" | "sms" = "sms";
+  /** Opérateur réellement imposé (undefined = achat libre). Enregistré sur
+   *  l'activation : sans ça, impossible de vérifier si forcer un opérateur
+   *  sert à quelque chose — c'est ce qui a manqué en septembre. */
+  let operateurObtenu: string | undefined;
   try {
     if (usingOnlineSim) {
       acquired = await buyFromOnlineSim(serviceCode, countryCode);
@@ -150,7 +154,7 @@ export async function purchaseNumber(
          sans contrainte. Un opérateur sans stock ne doit jamais faire échouer
          une vente : le repli final reproduit exactement l'ancien comportement. */
       const attempts: Array<string | undefined> = [
-        ...preferredOperators(countryCode),
+        ...(await preferredOperators(serviceCode, countryCode)),
         undefined,
       ];
       let lastErr: unknown;
@@ -278,6 +282,7 @@ export async function purchaseNumber(
              client doit voir « reçu par SMS » — et les statistiques doivent
              dire la vérité sur ce qui marche. */
           verifyType: modeObtenu === "call" ? "CALL" : "SMS",
+          operator: operateurObtenu ?? null,
           expiresAt: new Date(Date.now() + ACTIVATION_TTL_MIN * 60_000),
         },
       });

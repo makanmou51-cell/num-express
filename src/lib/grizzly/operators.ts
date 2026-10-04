@@ -1,215 +1,63 @@
+import "server-only";
+import { operateursMesures } from "@/lib/grizzly/deliverability";
+
 /**
- * Opérateurs mobiles RÉELS à privilégier à l'achat, par pays.
+ * Opérateurs à imposer à l'achat — désormais MESURÉS, non plus devinés.
  *
- * ── Pourquoi ce fichier existe ──────────────────────────────────────────
- * L'achat n'envoyait que `maxPrice`, c'est-à-dire un simple PLAFOND. HeroSMS
- * sert alors le numéro le moins cher du moment : des plages recyclées que
- * WhatsApp refuse en masse.
+ * ── Ce que contenait ce fichier avant, et pourquoi ça a échoué ──────────
+ * Une carte écrite à la main : « Allemagne → telekom, vodafone, o2 », etc.,
+ * déduite du nom des opérateurs en supposant qu'un réseau national valait
+ * mieux qu'un opérateur virtuel. Résultat mesuré sur 206 ventes : la
+ * réussite WhatsApp est passée de 8 % à 10 %, puis a CHUTÉ quand j'ai
+ * élargi la liste à 143 opérateurs — parce que j'y avais ajouté lebara,
+ * lycamobile, ortel_mobile, précisément les plages que WhatsApp refuse.
+ * Michael a demandé le retour à « au hasard », à juste titre.
  *
- * Vérifié en direct sur l'API HeroSMS : le paramètre `operator` EST honoré,
- * et il change la plage de numéros servie :
+ * ── Ce qui change ──────────────────────────────────────────────────────
+ * HeroSMS publie `GET /stats/deliverability` avec, par pays, le taux de
+ * réussite de CHAQUE opérateur et sa part dans les achats réussis :
  *
- *     operator=three  → 44 7401 833020   (074xx = plage Three)
- *     operator=o2     → 44 7892 921264   (078xx = plage O2)
- *     sans opérateur  → 44 7594 442123   (075xx, au hasard)
+ *     Tchéquie   vodafone 40 % (11 % du stock)  ·  tmobile 7 % (22 %)
+ *     Croatie    bonbon   20 % (25 %)           ·  telemach 3 % (75 %)
  *
- * ── Ordre des essais ────────────────────────────────────────────────────
- * Vrais réseaux d'abord (ceux qui possèdent les fréquences), puis les
- * opérateurs virtuels qui roulent sur ces mêmes réseaux et reçoivent donc de
- * vraies plages mobiles. L'intérêt de la deuxième partie est le STOCK : quand
- * Telekom n'a plus rien, Fonic — qui est sur le réseau o2 — dépanne.
+ * Deux faits qui justifient de reprendre ce levier :
+ *   · l'écart entre opérateurs d'un même pays va du simple au quintuple ;
+ *   · le meilleur ne pèse souvent que 5 à 25 % du stock, donc on ne tombe
+ *     jamais dessus sans le demander.
  *
- * ── Ce qu'on écarte volontairement ──────────────────────────────────────
- * `getOperators` mélange de vrais réseaux et des grossistes dont les plages
- * sont justement celles que WhatsApp bloque. Ne figurent donc PAS ci-dessous :
- *   · agrégateurs / VoIP : `generic_mobile`, `ezmobile`, `talk_telecom`,
- *     `teleena`, `plintron`, `tata_communications`, `textnow` (USA),
- *     `bandwidth` (Belgique — c'est un fournisseur CPaaS, pas un opérateur) ;
- *   · faux positifs de leur catalogue : `ose` (Grèce = les chemins de fer),
- *     `infrabel` (Belgique = l'infrastructure ferroviaire), `netmore`
- *     (Suède = IoT), `pivotel` (Australie = satellite), `travelsim`,
- *     `redteago` (eSIM de voyage) ;
- *   · micro-revendeurs obscurs dont on ne sait pas sur quel réseau ils sont.
+ * Trois garde-fous, pour ne pas refaire la même erreur :
+ *   1. aucun opérateur n'est imposé sans mesure — pas de mesure, achat
+ *      libre, exactement comme aujourd'hui ;
+ *   2. un opérateur qui ne fait pas mieux que la moyenne de son pays est
+ *      écarté : l'imposer réduirait le stock sans rien gagner ;
+ *   3. l'opérateur réellement servi est enregistré sur l'activation, pour
+ *      qu'on puisse VÉRIFIER. C'est ce qui manquait en septembre.
  *
- * ── Ce que ce fichier NE règle PAS ──────────────────────────────────────
- * Mesuré sur 206 ventes après la mise en service du paramètre `operator` :
- * la réussite WhatsApp est passée de 8 % à 10 %. Les numéros servis sont bien
- * devenus de vraies plages (Vodafone 0174/0152 en Allemagne, 073x au
- * Royaume-Uni) et WhatsApp les refuse quand même. La cause principale est
- * ailleurs — pays vendu et antifraude WhatsApp sur l'IP du client. Ce fichier
- * améliore la QUALITÉ et la DISPONIBILITÉ du numéro, pas le taux WhatsApp.
+ * L'interrupteur `OPERATOR_SELECTION` reste la commande maîtresse.
  */
 
 /**
- * INTERRUPTEUR — désactivé par défaut depuis le 2026-10-03.
- *
- * Michael constate que ses clients ne reçoivent plus du tout leur code et
- * demande le retour à « au hasard ». Décision prise sur ses ventes réelles,
- * et l'historique lui donne raison de se méfier :
- *
- *   · 8 %  avant toute sélection d'opérateur ;
- *   · 10 % avec 2 vrais réseaux par pays, puis repli « au hasard » ;
- *   · le 30/09 la liste est passée à 143 opérateurs sur 24 pays, en y
- *     ajoutant lebara, lycamobile, ortel_mobile — des opérateurs VIRTUELS.
- *
- * C'est là qu'est l'erreur : avant, un pays sans stock chez Telekom ou
- * Vodafone retombait AUSSITÔT sur « au hasard ». Depuis, il passe d'abord par
- * ces plages de revente, précisément celles que WhatsApp refuse le plus. La
- * tentative censée améliorer la qualité a pu la dégrader.
- *
- * Pour réactiver : poser OPERATOR_SELECTION=on dans l'environnement. La carte
- * ci-dessous est conservée intacte — elle a demandé un relevé complet de
- * getOperators sur 24 pays, et elle resservira si on veut retenter, mais
- * alors avec les seuls réseaux nationaux et des mesures avant/après.
+ * Désactivé par défaut depuis le 2026-10-03, à la demande de Michael.
+ * Poser `OPERATOR_SELECTION=on` dans l'environnement pour réactiver.
  */
 const SELECTION_ACTIVE = process.env.OPERATOR_SELECTION?.trim() === "on";
 
-/** Identifiants pays HeroSMS (protocole sms-activate). */
-const PREFERRED: Record<string, readonly string[]> = {
-  // ── Royaume-Uni ──
-  "16": [
-    "three",
-    "o2",
-    "ee",
-    "vodafone",
-    "giffgaff",
-    "tesco",
-    "lebara",
-    "lycamobile",
-  ],
-  // ── Pologne ──
-  "15": [
-    "plus",
-    "play",
-    "orange",
-    "tmobile",
-    "nju",
-    "heyah",
-    "plush",
-    "virgin",
-  ],
-  // ── Irlande ──
-  "23": ["three", "vodafone", "eir", "48mobile", "tesco"],
-  // ── Roumanie ──
-  "32": ["orange", "vodafone", "telekom", "digi"],
-  // ── Canada ── (at_t/verizon sont américains : écartés)
-  "36": ["rogers", "telus", "fido", "chatrmobile"],
-  // ── Allemagne ── fonic/ortel/lebara/lyca roulent sur o2
-  "43": [
-    "telekom",
-    "vodafone",
-    "o2",
-    "fonic",
-    "ortel_mobile",
-    "lebara",
-    "lycamobile",
-  ],
-  // ── Croatie ──
-  "45": ["a1", "tele2", "telemach", "tmobile", "bonbon", "tomato"],
-  // ── Suède ──
-  "46": ["telia", "tele2", "telenor", "three", "comviq", "lycamobile"],
-  // ── Pays-Bas ── odido = ex T-Mobile NL
-  "48": [
-    "kpn",
-    "odido",
-    "vodafone",
-    "tmobile",
-    "lebara",
-    "lycamobile",
-    "l_mobi",
-  ],
-  // ── Autriche ──
-  "50": [
-    "a1",
-    "magenta",
-    "three",
-    "tmobile",
-    "telering",
-    "yesss",
-    "hot_mobile",
-    "lidl",
-  ],
-  // ── Espagne ──
-  "56": [
-    "movistar",
-    "orange",
-    "vodafone",
-    "yoigo",
-    "masmovil",
-    "digi",
-    "finetwork",
-    "euskaltel",
-    "lebara",
-    "lycamobile",
-  ],
-  // ── Slovénie ──
-  "59": ["telekom", "a1", "telemach", "hot_mobile"],
-  // ── France ── lebara/lyca sur Bouygues, syma sur SFR
-  "78": [
-    "orange",
-    "sfr",
-    "bouygues",
-    "free",
-    "lebara",
-    "lycamobile",
-    "syma_mobile",
-  ],
-  // ── Belgique ── (bandwidth et infrabel écartés : pas des opérateurs mobiles)
-  "82": ["proximus", "orange", "base", "lycamobile", "vectone"],
-  // ── Italie ── ho = Vodafone, kena = TIM
-  "86": [
-    "tim",
-    "vodafone",
-    "iliad",
-    "wind",
-    "ho",
-    "kena_mobile",
-    "digi",
-    "lycamobile",
-  ],
-  // ── Portugal ──
-  "117": ["nos", "vodafone", "lebara", "lycamobile"],
-  // ── Géorgie ──
-  "128": ["magticom", "geocell", "beeline"],
-  // ── Grèce ── (ose écarté : chemins de fer grecs)
-  "129": ["cosmote", "vodafone", "wind", "q_telecom"],
-  // ── Finlande ──
-  "163": ["elisa", "telia", "dna"],
-  // ── Danemark ──
-  "172": ["telenor", "lebara", "lycamobile"],
-  // ── Suisse ── aucun réseau national proposé, seulement des virtuels
-  "173": ["lycamobile", "lebara", "lidl"],
-  // ── Norvège ── my_call roule sur Telia
-  "174": ["telia", "my_call", "lycamobile"],
-  // ── Australie ──
-  "175": ["telstra", "optus", "vodafone", "lebara"],
-  // ── USA ── surtout PAS textnow (VoIP pur)
-  "187": [
-    "tmobile",
-    "verizon",
-    "at_t",
-    "mint_mobile",
-    "ultra_mobile",
-    "cricket_wireless",
-    "boost_mobile",
-    "us_mobile",
-    "h2o_wireless",
-    "lycamobile",
-  ],
-};
+/** Vrai si la sélection par opérateur est armée (affiché dans le diagnostic). */
+export const operatorSelectionActive = SELECTION_ACTIVE;
 
 /**
- * Opérateurs à essayer pour ce pays, du meilleur au moins bon.
- * Renvoie un tableau vide si aucun n'est connu — l'achat se fait alors comme
- * avant, sans contrainte.
- *
- * DÉFAUT CORRIGÉ le 2026-09-30 : un plafond de 2 essais tronquait cette
- * liste, si bien que la moitié était du code mort — o2 en Allemagne, ee et
- * vodafone au Royaume-Uni, bouygues et free en France n'étaient JAMAIS
- * tentés. La liste part maintenant entière ; c'est une limite de TEMPS, côté
- * achat, qui empêche de faire patienter le client (voir `purchaseNumber`).
+ * Opérateurs à essayer pour ce couple service/pays, du meilleur au moins bon.
+ * Tableau vide = achat sans contrainte (comportement par défaut).
  */
-export function preferredOperators(countryCode: string): readonly string[] {
+export async function preferredOperators(
+  serviceCode: string,
+  countryCode: string,
+): Promise<readonly string[]> {
   if (!SELECTION_ACTIVE) return [];
-  return PREFERRED[countryCode] ?? [];
+  try {
+    return await operateursMesures(serviceCode, countryCode);
+  } catch {
+    // Une statistique indisponible ne doit JAMAIS empêcher une vente.
+    return [];
+  }
 }

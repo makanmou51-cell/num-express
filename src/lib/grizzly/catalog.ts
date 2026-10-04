@@ -1,17 +1,17 @@
+import { unstable_cache } from "next/cache";
 import {
   grizzly,
   type CountryInfo,
+  type PriceEntry,
   type PriceV3Entry,
 } from "@/lib/grizzly/client";
 import { computePublicPriceXof } from "@/lib/pricing";
-import { getSettings } from "@/lib/settings";
+import { getSettings, type AppSettings } from "@/lib/settings";
+import { mesuresParPays } from "@/lib/grizzly/deliverability";
 import { isoFromName } from "@/lib/grizzly/flags";
 import { env } from "@/lib/env";
 import { ONLINESIM_SERVICE_SLUG } from "@/lib/onlinesim/client";
-import {
-  getOnlineSimOffers,
-  getOnlineSimOffer,
-} from "@/lib/onlinesim/catalog";
+import { getOnlineSimOffers, getOnlineSimOffer } from "@/lib/onlinesim/catalog";
 
 /** Codes de services populaires -> libellé affiché. */
 export const SERVICE_LABELS: Record<string, string> = {
@@ -34,10 +34,11 @@ export const SERVICE_LABELS: Record<string, string> = {
   ot: "Autre service",
 };
 
-/** Services mis en avant dans l'UI, dans l'ordre. Les plus fiables d'abord
- *  (Telegram, Google, Instagram) ; WhatsApp délivre mal via numéros virtuels,
- *  il reste accessible dans le catalogue complet mais n'est plus mis en avant. */
+/** Services mis en avant dans l'UI, dans l'ordre. WhatsApp d'abord : avec
+ *  HeroSMS (numéros non-VoIP frais) il délivre enfin de façon fiable, c'est le
+ *  service le plus demandé. Suivent Telegram, Google, Instagram… */
 export const FEATURED_SERVICES = [
+  "wa",
   "tg",
   "go",
   "ig",
@@ -49,7 +50,7 @@ export const FEATURED_SERVICES = [
 ];
 
 /** Services réputés fiables (badge « Fiable » sur la vitrine). */
-export const RELIABLE_SERVICES = ["tg", "go", "ig", "ds"];
+export const RELIABLE_SERVICES = ["wa", "tg", "go", "ig", "ds"];
 
 /** Quelques noms de pays en français (sinon on retombe sur le libellé anglais). */
 const COUNTRY_FR: Record<string, string> = {
@@ -167,6 +168,17 @@ export interface CatalogOffer {
   rawCost: number; // coût brut fournisseur
   count: number; // numéros disponibles
   priceXof: number; // prix public marge incluse
+  // (HeroSMS) Pays « fiable » : beaucoup de numéros PHYSIQUES en ligne → le
+  // code arrive quasi à coup sûr. Badge affiché côté client.
+  reliable?: boolean;
+  /**
+   * Taux de réussite mesuré par le fournisseur (%), si disponible.
+   *
+   * Le badge « Fiable » reposait sur le stock de numéros PHYSIQUES — un
+   * mauvais indicateur : les Pays-Bas ont 693 000 numéros, décrochaient le
+   * badge, et ne délivrent que 3 % des codes. Ce champ le remplace.
+   */
+  successRate?: number;
 }
 
 // Cache mémoire simple pour la liste des pays (change rarement).
@@ -174,11 +186,34 @@ let countriesCache: { at: number; data: Record<string, CountryInfo> } | null =
   null;
 const COUNTRIES_TTL = 6 * 60 * 60 * 1000; // 6 h
 
+/** Tag de révalidation à la demande pour la liste des pays. */
+export const COUNTRIES_TAG = "herosms-countries";
+
+/**
+ * Lève si la liste revient vide : `unstable_cache` ne mémorise pas les rejets,
+ * donc un incident fournisseur n'est pas figé 6 h.
+ */
+async function fetchCountries(): Promise<Record<string, CountryInfo>> {
+  const data = await grizzly.getCountries();
+  if (!data || !Object.keys(data).length) {
+    throw new Error("HeroSMS: liste de pays vide");
+  }
+  return data;
+}
+
+// Data Cache de Next : survit aux cold starts serverless, contrairement à la
+// variable de module seule (qui refaisait l'appel réseau à chaque nouvelle
+// lambda, soit juste après le clic sur un service).
+const cachedCountries = unstable_cache(fetchCountries, ["herosms:countries"], {
+  tags: [COUNTRIES_TAG],
+  revalidate: 21600,
+});
+
 async function getCountriesCached(): Promise<Record<string, CountryInfo>> {
   if (countriesCache && Date.now() - countriesCache.at < COUNTRIES_TTL) {
     return countriesCache.data;
   }
-  const data = await grizzly.getCountries();
+  const data = await cachedCountries();
   countriesCache = { at: Date.now(), data };
   return data;
 }
@@ -189,10 +224,11 @@ async function getCountriesCached(): Promise<Record<string, CountryInfo>> {
  */
 export const usingOnlineSim = env.smsProvider === "onlinesim";
 
+/** Vrai quand HeroSMS est le fournisseur actif (protocole sms-activate). */
+export const usingHeroSms = env.smsProvider === "herosms";
+
 /** Catalogue via OnlineSim (pas de paliers fournisseur chez eux). */
-async function onlineSimCatalog(
-  serviceCode: string,
-): Promise<CatalogOffer[]> {
+async function onlineSimCatalog(serviceCode: string): Promise<CatalogOffer[]> {
   const slug = ONLINESIM_SERVICE_SLUG[serviceCode] ?? serviceCode;
   const [offers, settings] = await Promise.all([
     getOnlineSimOffers(slug),
@@ -202,8 +238,10 @@ async function onlineSimCatalog(
   const out: CatalogOffer[] = [];
   for (const o of offers) {
     if (o.cost <= 0) continue;
-    // count = 0 -> pays annoncé mais sans numéro : inachetable, on le masque.
-    if (o.count <= 0 || o.count < settings.minStockCount) continue;
+    // OnlineSim rapporte de PETITS stocks réels : on n'applique donc PAS le
+    // seuil Grizzly (500), sinon l'Espagne & co disparaissent. On masque
+    // seulement les pays sans numéro (count = 0), avec un plancher dédié bas.
+    if (o.count <= 0 || o.count < env.pricing.onlineSimMinStock) continue;
     out.push({
       countryCode: o.countryCode,
       countryName: COUNTRY_FR[o.countryEng] ?? o.countryEng,
@@ -224,9 +262,142 @@ async function onlineSimCatalog(
   return out;
 }
 
+/**
+ * Stock retenu pour HeroSMS : le PLUS GRAND entre le stock affiché (`count`)
+ * et le physique (`physicalCount`). On NE cache PAS un pays qui a de la dispo :
+ * HeroSMS propose ~180 pays, il faut les proposer tous. Le physique reste un
+ * bonus de fiabilité mais ne sert pas à filtrer.
+ */
+/**
+ * Stock PHYSIQUE (numéros non-VoIP réellement en ligne) = LE signal de
+ * fiabilité HeroSMS : c'est lui qui détermine si le code arrive (testé :
+ * Portugal 1022 physiques → code reçu ; Pologne 215 → pas de code). On l'affiche
+ * et on trie dessus.
+ */
+function heroPhysical(entry: PriceEntry): number {
+  const p = Number(entry.physicalCount);
+  return Number.isFinite(p) && p > 0 ? p : 0;
+}
+
+/** Disponibilité brute (physique OU virtuel) — sert juste à ne pas lister un
+ *  pays totalement vide. */
+function heroAvailable(entry: PriceEntry): number {
+  const c = Number(entry.count);
+  return Math.max(heroPhysical(entry), Number.isFinite(c) ? Math.max(0, c) : 0);
+}
+
+/**
+ * Prix public HeroSMS = coût RÉEL converti + bénéfice des RÉGLAGES (admin/DB,
+ * modifiable en direct depuis la page Réglages) + micro-variation par pays.
+ * Inutile de gonfler le prix : l'API vend toujours le numéro le moins cher
+ * (fixedPrice et maxPrice donnent le même), la fiabilité vient du stock
+ * PHYSIQUE, pas du prix.
+ */
+function heroPriceXof(
+  rawCost: number,
+  settings: AppSettings,
+  seed: string,
+): number {
+  return computePublicPriceXof(rawCost, settings, seed);
+}
+
+/**
+ * Catalogue via HeroSMS. Même protocole que Grizzly, mais HeroSMS n'expose PAS
+ * getPricesV3 (paliers par fournisseur) : on utilise getPrices standard
+ * ({ pays: { service: { cost, count, physicalCount } } }). Un seul prix par
+ * pays/service — la fiabilité vient des numéros physiques non-VoIP.
+ */
+async function heroSmsCatalog(serviceCode: string): Promise<CatalogOffer[]> {
+  const [prices, countries, settings, mesures] = await Promise.all([
+    grizzly.getPrices({ service: serviceCode }),
+    getCountriesCached(),
+    getSettings(),
+    /* Le taux de réussite publié par HeroSMS, par pays. En cache 6 h et
+       tolérant à la panne : si la statistique manque, on retombe sur le
+       stock physique, exactement comme avant. */
+    mesuresParPays(serviceCode),
+  ]);
+
+  const RELIABLE = env.pricing.heroSmsReliablePhysical;
+  /* Seuil de fiabilité sur le TAUX. Leur meilleur pays WhatsApp au monde
+     plafonne à 33 % : 15 % est donc déjà un très bon pays, et au-dessus de
+     ce seuil le client a une chance réelle de recevoir son code. */
+  const TAUX_FIABLE = 15;
+  const out: CatalogOffer[] = [];
+  for (const [countryCode, services] of Object.entries(prices)) {
+    const entry = (services as Record<string, PriceEntry>)[serviceCode];
+    if (!entry) continue;
+    const cost = Number(entry.cost);
+    if (!Number.isFinite(cost) || cost <= 0) continue;
+    // On garde tout pays disponible ; l'ORDRE et le badge viennent désormais
+    // du taux de réussite mesuré, plus du stock. Prix basé sur le coût RÉEL.
+    if (heroAvailable(entry) < env.pricing.heroSmsMinStock) continue;
+    const physical = heroPhysical(entry);
+    const taux = mesures.get(countryCode)?.successRate;
+    out.push({
+      countryCode,
+      countryName: countryLabel(countries[countryCode], countryCode),
+      iso: isoFromName(countries[countryCode]?.eng),
+      providerId: null,
+      serviceCode,
+      serviceName: serviceLabel(serviceCode),
+      rawCost: cost,
+      count: physical,
+      successRate: taux,
+      // Le taux mesuré prime ; le stock physique ne sert plus que de repli.
+      reliable: taux !== undefined ? taux >= TAUX_FIABLE : physical >= RELIABLE,
+      priceXof: heroPriceXof(cost, settings, `${serviceCode}:${countryCode}`),
+    });
+  }
+  /* TRI : le taux de réussite d'abord, le stock ensuite.
+     L'ancien tri par stock mettait les Pays-Bas (693 000 numéros, 3 % de
+     réussite réelle) en tête AVEC un badge « Fiable », et enterrait le
+     Canada (60 % mesuré chez nous, vendu 5 fois). Les clients suivent ce que
+     le site leur présente : 508 de nos 864 ventes sont parties vers nos
+     trois PIRES pays. Les pays sans mesure gardent l'ancien comportement et
+     se classent après ceux dont on sait qu'ils délivrent. */
+  out.sort(
+    (a, b) =>
+      (b.successRate ?? -1) - (a.successRate ?? -1) ||
+      b.count - a.count ||
+      a.priceXof - b.priceXof,
+  );
+  return out;
+}
+
+/** Offre exacte (service, pays) via HeroSMS — reconfirmée à l'achat. */
+async function heroSmsOffer(
+  serviceCode: string,
+  countryCode: string,
+): Promise<CatalogOffer | null> {
+  const [prices, countries, settings] = await Promise.all([
+    grizzly.getPrices({ service: serviceCode, country: countryCode }),
+    getCountriesCached(),
+    getSettings(),
+  ]);
+  const entry = prices[countryCode]?.[serviceCode];
+  if (!entry) return null;
+  const cost = Number(entry.cost);
+  if (!Number.isFinite(cost) || cost <= 0) return null;
+  const physical = heroPhysical(entry);
+  return {
+    countryCode,
+    countryName: countryLabel(countries[countryCode], countryCode),
+    iso: isoFromName(countries[countryCode]?.eng),
+    providerId: null,
+    serviceCode,
+    serviceName: serviceLabel(serviceCode),
+    rawCost: cost,
+    count: physical,
+    reliable: physical >= env.pricing.heroSmsReliablePhysical,
+    priceXof: heroPriceXof(cost, settings, `${serviceCode}:${countryCode}`),
+  };
+}
+
 export async function getCatalogForService(
   serviceCode: string,
 ): Promise<CatalogOffer[]> {
+  if (usingHeroSms) return heroSmsCatalog(serviceCode);
   if (usingOnlineSim) return onlineSimCatalog(serviceCode);
   const [prices, countries, settings] = await Promise.all([
     grizzly.getPricesV3({ service: serviceCode }),
@@ -278,6 +449,7 @@ export async function getOffer(
   serviceCode: string,
   countryCode: string,
 ): Promise<CatalogOffer | null> {
+  if (usingHeroSms) return heroSmsOffer(serviceCode, countryCode);
   if (usingOnlineSim) {
     const slug = ONLINESIM_SERVICE_SLUG[serviceCode] ?? serviceCode;
     const [o, settings] = await Promise.all([

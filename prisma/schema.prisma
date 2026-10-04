@@ -199,6 +199,12 @@ model Activation {
   costRaw              Float? // coût brut côté Grizzly (devise fournisseur), pour marge/stats
   status               String  @default("WAITING_CODE") // WAITING_CODE | RECEIVED | COMPLETED | CANCELLED | REFUNDED | EXPIRED
   verifyType           String  @default("SMS") // SMS | CALL — méthode choisie par le client
+  // Opérateur RÉELLEMENT imposé à l'achat (null = aucun, « au hasard »).
+  // Sans ce champ, impossible de mesurer si forcer un opérateur sert à
+  // quelque chose : c'est exactement ce qui a manqué en septembre, où la
+  // carte écrite à la main a dû être désactivée sans qu'on puisse dire
+  // lequel de ses opérateurs était en cause.
+  operator             String?
   smsCode              String?
   smsText              String?
   refunded             Boolean @default(false)
