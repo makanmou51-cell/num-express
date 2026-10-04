@@ -12,6 +12,7 @@ import {
 import { usingOnlineSim, usingHeroSms } from "@/lib/grizzly/catalog";
 import { Suspense } from "react";
 import { RentalsProbe } from "./rentals-probe";
+import { FlashCallProbe } from "./flashcall-probe";
 
 export const metadata: Metadata = { title: "Admin — Diagnostic Grizzly" };
 export const dynamic = "force-dynamic";
@@ -86,6 +87,20 @@ export default async function GrizzlyDiagnosticPage() {
         }
       >
         <RentalsProbe service="wa" />
+      </Suspense>
+
+      {/* Sonde FlashCall : dit si l'option « Appel » peut etre un vrai produit
+          ou si elle restera cosmetique. Sous Suspense, comme la precedente. */}
+      <Suspense
+        fallback={
+          <Card className="p-5">
+            <p className="text-sm text-muted">
+              Interrogation du FlashCall chez HeroSMS…
+            </p>
+          </Card>
+        }
+      >
+        <FlashCallProbe />
       </Suspense>
 
       <Alert variant={usingOnlineSim ? "info" : "success"}>

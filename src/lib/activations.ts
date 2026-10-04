@@ -127,6 +127,10 @@ export async function purchaseNumber(
       offer.rawCost * (1 + Math.max(0, settings.maxPriceBuffer)) * 100,
     ) / 100;
   let acquired: { activationId: string; phoneNumber: string };
+  /** Mode de vérification REELLEMENT obtenu (le FlashCall peut manquer de
+   *  stock et retomber sur un SMS). Déclaré ici pour rester lisible au moment
+   *  d'enregistrer l'activation, bien plus bas. */
+  let modeObtenu: "call" | "sms" = "sms";
   try {
     if (usingOnlineSim) {
       acquired = await buyFromOnlineSim(serviceCode, countryCode);
@@ -151,35 +155,67 @@ export async function purchaseNumber(
       ];
       let lastErr: unknown;
       let got: { activationId: string; phoneNumber: string } | null = null;
+
+      /* Modes de vérification à tenter, dans l'ordre.
+         Le client qui demande « Appel » obtient d'abord un vrai numéro
+         FlashCall. Mais le FlashCall est un produit DISTINCT chez HeroSMS, à
+         son propre tarif : si son prix dépasse notre plafond `maxPrice`, ou
+         s'il n'y a pas de stock, l'achat échouerait et la vente serait
+         PERDUE. On retombe donc sur le SMS plutôt que de ne rien vendre —
+         exactement le comportement d'avant.
+         La marge, elle, est protégée dans tous les cas : `maxPrice` est un
+         plafond calculé sur le coût, HeroSMS ne peut jamais facturer au-delà. */
+      const modes: Array<"call" | "sms"> =
+        verifyType === "CALL" ? ["call", "sms"] : ["sms"];
+
       /* Limite de TEMPS plutôt que de nombre d'essais. Un pays peut avoir
          quatre réseaux ; les essayer tous à la suite ferait patienter le
          client sur un écran bloqué si aucun n'a de stock. Passé ce délai on
          saute directement au repli « sans opérateur », qui a toujours du
          stock. Le client ne perd donc jamais sa vente NI son temps. */
       const dateLimite = Date.now() + OPERATOR_TRY_BUDGET_MS;
-      for (const operator of attempts) {
-        if (operator !== undefined && Date.now() > dateLimite) continue;
-        try {
-          got = await grizzly.getNumber({
-            service: serviceCode,
-            country: countryCode,
-            maxPrice,
-            providerIds: offer.providerId ?? undefined,
-            operator,
-          });
-          break;
-        } catch (err) {
-          lastErr = err;
-          // Cet opérateur n'a plus de stock : on passe au suivant. Toute autre
-          // erreur (solde, clé, service) est définitive, on la remonte.
-          const noStock =
-            err instanceof GrizzlyError &&
-            (err.code === "NO_NUMBERS" || err.code === "WRONG_MAX_PRICE");
-          if (noStock && operator !== undefined) continue;
-          throw err;
+      for (const mode of modes) {
+        if (got) break;
+        for (const operator of attempts) {
+          if (operator !== undefined && Date.now() > dateLimite) continue;
+          try {
+            got = await grizzly.getNumber({
+              service: serviceCode,
+              country: countryCode,
+              maxPrice,
+              providerIds: offer.providerId ?? undefined,
+              operator,
+              /* Le choix du client descend ENFIN jusqu'au fournisseur. Il
+               s'arretait jusqu'ici dans notre base : « Appel » et « SMS »
+               achetaient exactement le meme numero, au meme prix, alors que
+               HeroSMS vend le FlashCall comme un produit distinct. */
+              verification: mode,
+            });
+            modeObtenu = mode;
+            break;
+          } catch (err) {
+            lastErr = err;
+            // Cet opérateur n'a plus de stock : on passe au suivant. Toute autre
+            // erreur (solde, clé, service) est définitive, on la remonte.
+            const noStock =
+              err instanceof GrizzlyError &&
+              (err.code === "NO_NUMBERS" || err.code === "WRONG_MAX_PRICE");
+            if (noStock && operator !== undefined) continue;
+            /* Pas de stock FlashCall : on sort de cette boucle pour laisser le
+             mode suivant (SMS) tenter sa chance, au lieu de casser la vente. */
+            if (noStock && mode === "call") break;
+            throw err;
+          }
         }
       }
       if (!got) throw lastErr;
+      if (verifyType === "CALL" && modeObtenu === "sms") {
+        console.warn(
+          "[achat] FlashCall indisponible, repli sur SMS —",
+          serviceCode,
+          countryCode,
+        );
+      }
       acquired = got;
     }
   } catch (e) {
@@ -237,7 +273,11 @@ export async function purchaseNumber(
           priceXof: offer.priceXof,
           costRaw: offer.rawCost,
           status: "WAITING_CODE",
-          verifyType,
+          /* On enregistre le mode REELLEMENT obtenu, pas celui demandé. Si le
+             FlashCall n'avait pas de stock et qu'on est retombé sur un SMS, le
+             client doit voir « reçu par SMS » — et les statistiques doivent
+             dire la vérité sur ce qui marche. */
+          verifyType: modeObtenu === "call" ? "CALL" : "SMS",
           expiresAt: new Date(Date.now() + ACTIVATION_TTL_MIN * 60_000),
         },
       });

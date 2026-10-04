@@ -1,4 +1,4 @@
-import { env, requireGrizzlyKey } from "@/lib/env";
+import { env } from "@/lib/env";
 
 /**
  * Client de l'API Grizzly SMS (protocole `handler_api.php`, type sms-activate).
@@ -30,7 +30,12 @@ export class GrizzlyError extends Error {
   raw?: string;
   /** Charge utile après le préfixe (ex. date pour BANNED, prix mini pour WRONG_MAX_PRICE). */
   detail?: string;
-  constructor(code: GrizzlyErrorCode, message: string, raw?: string, detail?: string) {
+  constructor(
+    code: GrizzlyErrorCode,
+    message: string,
+    raw?: string,
+    detail?: string,
+  ) {
     super(message);
     this.name = "GrizzlyError";
     this.code = code;
@@ -104,7 +109,10 @@ export const SET_STATUS = {
 
 export interface PriceEntry {
   cost: number; // coût brut (devise fournisseur)
-  count: number; // nombre de numéros disponibles
+  count: number; // stock « affiché » (souvent gonflé, inclut le virtuel)
+  // Numéros PHYSIQUES (non-VoIP) réellement en ligne. Chez HeroSMS c'est LE
+  // signal de fiabilité : seuls les numéros physiques délivrent WhatsApp.
+  physicalCount?: number;
 }
 /** getPrices : { [country]: { [service]: PriceEntry } } */
 export type PricesResponse = Record<string, Record<string, PriceEntry>>;
@@ -135,6 +143,48 @@ export interface CountryInfo {
   visible?: number;
 }
 
+/** Un message (SMS ou appel) renvoyé par getStatusV2. */
+export type StatusV2Item = {
+  code?: string;
+  text?: string;
+  date?: string;
+  sender?: string;
+  from?: string;
+};
+/** getStatusV2 : état riche. `sms` = objet (activation) OU tableau (location) ;
+ *  `call` = code reçu par APPEL (WhatsApp « appelez-moi »). */
+export interface StatusV2 {
+  verificationType?: number;
+  sms?: StatusV2Item | StatusV2Item[] | null;
+  call?: StatusV2Item | null;
+}
+
+/** (HeroSMS) Prix d'UN service pour une location d'une durée donnée. */
+export interface RentServiceInfo {
+  quantity: number;
+  price: number;
+  retail_price?: number;
+}
+/** getRentServicesAndCountries : services/pays/opérateurs dispo à la location. */
+export interface RentPrices {
+  countries?: Record<string, unknown>;
+  operators?: unknown;
+  services?: Record<string, RentServiceInfo>;
+}
+/** Numéro loué renvoyé par getRentNumber. */
+export interface RentedNumber {
+  rentId: string;
+  phoneNumber: string;
+  cost: number;
+  endTime?: string;
+}
+
+/** Un service HeroSMS (code interne + nom lisible). */
+export interface ServiceListItem {
+  code: string;
+  name: string;
+}
+
 /** Une activation en cours renvoyée par getActiveActivations (champs souples). */
 export interface ActiveActivation {
   activationId?: string | number;
@@ -149,12 +199,31 @@ export interface ActiveActivation {
   [key: string]: unknown;
 }
 
+/**
+ * Cible effective de l'API selon le fournisseur actif. HeroSMS parle EXACTEMENT
+ * le même protocole `handler_api.php` que Grizzly : on réutilise donc tout ce
+ * client en changeant seulement l'URL de base et la clé. Seul le catalogue
+ * diffère (HeroSMS n'expose pas getPricesV3), géré à part.
+ */
+function providerTarget(): { baseUrl: string; apiKey: string } {
+  if (env.smsProvider === "herosms") {
+    return { baseUrl: env.heroSms.baseUrl, apiKey: env.heroSms.apiKey };
+  }
+  return { baseUrl: env.grizzly.baseUrl, apiKey: env.grizzly.apiKey };
+}
+
 async function rawCall(
   action: string,
   params: Record<string, string | number | undefined>,
 ): Promise<string> {
-  const apiKey = requireGrizzlyKey();
-  const url = new URL(env.grizzly.baseUrl);
+  const { baseUrl, apiKey } = providerTarget();
+  if (!apiKey) {
+    throw new GrizzlyError(
+      "BAD_KEY",
+      "Clé API fournisseur absente ou invalide.",
+    );
+  }
+  const url = new URL(baseUrl);
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("action", action);
   for (const [k, v] of Object.entries(params)) {
@@ -226,6 +295,29 @@ const liveGrizzly = {
   },
 
   /**
+   * SONDE FlashCall — appelle une action arbitraire et renvoie la réponse
+   * BRUTE, sans l'interpréter.
+   *
+   * Pourquoi : HeroSMS vend « FlashCall + SMS » sur son site, mais rien ne dit
+   * que son API l'expose, ni sous quel nom. Le cas s'est déjà produit avec le
+   * premium « Mon prix » : visible sur leur site, inaccessible par l'API. On
+   * interroge donc avant d'écrire du code qui engage de l'argent.
+   *
+   * Lecture seule : aucune de ces actions n'achète quoi que ce soit.
+   */
+  async probeRaw(
+    action: string,
+    params: Record<string, string | number | undefined> = {},
+  ): Promise<{ ok: boolean; body: string }> {
+    try {
+      const body = await rawCall(action, params);
+      return { ok: true, body };
+    } catch (e) {
+      return { ok: false, body: (e as Error).message };
+    }
+  },
+
+  /**
    * Prix DÉTAILLÉS par fournisseur (paliers). Permet de viser un palier haut
    * — les fournisseurs premium délivrent le code beaucoup plus vite que le
    * palier « from » renvoyé par getPrices.
@@ -286,12 +378,37 @@ const liveGrizzly = {
      * réellement un fournisseur premium.
      */
     providerIds?: string;
+    /**
+     * (HeroSMS) Achat AU PRIX EXACT imposé — « Purchasing strictly at the
+     * specified price ». Contrairement à maxPrice (plafond → prend le pool le
+     * moins cher, souvent des numéros brûlés), fixedPrice force le pool PREMIUM
+     * à ce niveau de prix (numéros frais qui délivrent réellement le code).
+     */
+    fixedPrice?: number;
+    /** Opérateur imposé (optionnel). */
+    operator?: string;
+    /**
+     * Mode de vérification demandé au fournisseur.
+     *
+     * `"call"` achète un numéro FlashCall : le service appelle, raccroche, et
+     * le code EST le numéro de l'appelant. C'est un PRODUIT DISTINCT chez
+     * HeroSMS, à un tarif distinct — d'où le paramètre à l'achat.
+     *
+     * Le nom exact du paramètre côté HeroSMS est confirmé par la sonde de
+     * /admin/diagnostic. Tant qu'il n'est pas validé, l'appelant retombe sur
+     * un achat SMS normal plutôt que de risquer une vente cassée.
+     */
+    verification?: "sms" | "call";
   }): Promise<{ activationId: string; phoneNumber: string }> {
     const text = await rawCall("getNumber", {
       service: opts.service,
       country: opts.country,
       maxPrice: opts.maxPrice,
+      fixedPrice: opts.fixedPrice,
+      operator: opts.operator,
       providerIds: opts.providerIds,
+      // 1 = vérification par appel (FlashCall) dans le protocole sms-activate.
+      ...(opts.verification === "call" ? { activationType: 1 } : {}),
     });
     // ACCESS_NUMBER:activationId:phoneNumber
     const m = text.match(/^ACCESS_NUMBER:([^:]+):(.+)$/);
@@ -333,6 +450,83 @@ const liveGrizzly = {
   /** Annule une activation (remboursement fournisseur si éligible). */
   cancel(activationId: string) {
     return this.setStatus(activationId, SET_STATUS.CANCEL);
+  },
+
+  // ───── Location (numéros loués, HeroSMS) ─────
+
+  /** État riche (multi-SMS) d'une activation OU d'une location. */
+  async getStatusV2(activationId: string): Promise<StatusV2> {
+    const text = await rawCall("getStatusV2", { id: activationId });
+    return parseJson<StatusV2>(text);
+  },
+
+  /**
+   * Code reçu via getStatusV2 — SMS **ou APPEL**. WhatsApp propose « appelez-moi »
+   * quand le SMS tarde ; le code arrive alors dans `call.code`. getStatus (texte)
+   * ne voit que le SMS, d'où ce complément (numéros France & co qui délivrent
+   * mieux par appel).
+   */
+  async getV2Code(
+    activationId: string,
+  ): Promise<{ code: string; via: "sms" | "call" } | null> {
+    const v2 = await this.getStatusV2(activationId);
+    const call = v2.call;
+    if (call && typeof call === "object" && call.code) {
+      return { code: String(call.code), via: "call" };
+    }
+    const sms = v2.sms;
+    const item = Array.isArray(sms) ? sms[sms.length - 1] : sms;
+    if (item && typeof item === "object" && item.code) {
+      return { code: String(item.code), via: "sms" };
+    }
+    return null;
+  },
+
+  /** Prix des services louables pour un pays + une durée (heures). */
+  async getRentPrices(opts: {
+    country: string;
+    durationHours: number;
+  }): Promise<RentPrices> {
+    const text = await rawCall("getRentServicesAndCountries", {
+      country: opts.country,
+      duration: opts.durationHours,
+    });
+    return parseJson<RentPrices>(text);
+  },
+
+  /** Loue un numéro dédié pour `durationHours` heures. */
+  async rentNumber(opts: {
+    service: string;
+    country: string;
+    durationHours: number;
+  }): Promise<RentedNumber> {
+    const text = await rawCall("getRentNumber", {
+      service: opts.service,
+      country: opts.country,
+      duration: opts.durationHours,
+    });
+    const o = parseJson<{
+      activationId?: string | number;
+      phoneNumber?: string;
+      activationCost?: number;
+      activationEndTime?: string;
+    }>(text);
+    if (!o.activationId || !o.phoneNumber) {
+      throw new GrizzlyError("UNKNOWN", "Réponse de location illisible.", text);
+    }
+    return {
+      rentId: String(o.activationId),
+      phoneNumber: String(o.phoneNumber),
+      cost: Number(o.activationCost ?? 0),
+      endTime: o.activationEndTime,
+    };
+  },
+
+  /** Liste des services HeroSMS (code -> nom lisible). */
+  async getServicesList(country?: string): Promise<ServiceListItem[]> {
+    const text = await rawCall("getServicesList", country ? { country } : {});
+    const j = parseJson<{ services?: ServiceListItem[] }>(text);
+    return Array.isArray(j.services) ? j.services : [];
   },
 };
 
@@ -389,7 +583,13 @@ const MOCK_COUNTRIES: Record<string, CountryInfo> = Object.fromEntries(
 );
 
 function mockServiceFactor(service: string): number {
-  const f: Record<string, number> = { wa: 1, tg: 0.8, ig: 0.9, go: 1.1, fb: 0.95 };
+  const f: Record<string, number> = {
+    wa: 1,
+    tg: 0.8,
+    ig: 0.9,
+    go: 1.1,
+    fb: 0.95,
+  };
   return f[service] ?? 1;
 }
 
@@ -410,20 +610,35 @@ const mockGrizzly: typeof liveGrizzly = {
     return 25.0;
   },
 
+  /* En mode simulé, la sonde ne contacte personne : elle le dit clairement
+     plutôt que de renvoyer une fausse réponse qu'on prendrait pour vraie. */
+  async probeRaw(action: string) {
+    return {
+      ok: false,
+      body: `[mode simulé] action « ${action} » non appelée`,
+    };
+  },
+
   async getPrices(opts: { service?: string; country?: string } = {}) {
     const service = opts.service ?? "wa";
-    const countries = opts.country ? [opts.country] : Object.keys(MOCK_COUNTRIES);
+    const countries = opts.country
+      ? [opts.country]
+      : Object.keys(MOCK_COUNTRIES);
     const out: PricesResponse = {};
     for (const c of countries) {
       if (!MOCK_COUNTRIES[c]) continue;
-      out[c] = { [service]: { cost: mockCost(c, service), count: mockCount(c, service) } };
+      out[c] = {
+        [service]: { cost: mockCost(c, service), count: mockCount(c, service) },
+      };
     }
     return out;
   },
 
   async getPricesV3(opts: { service?: string; country?: string } = {}) {
     const service = opts.service ?? "wa";
-    const countries = opts.country ? [opts.country] : Object.keys(MOCK_COUNTRIES);
+    const countries = opts.country
+      ? [opts.country]
+      : Object.keys(MOCK_COUNTRIES);
     const out: PricesV3Response = {};
     for (const c of countries) {
       if (!MOCK_COUNTRIES[c]) continue;
@@ -461,6 +676,8 @@ const mockGrizzly: typeof liveGrizzly = {
     country: string;
     maxPrice?: number;
     providerIds?: string;
+    fixedPrice?: number;
+    operator?: string;
   }) {
     const activationId = `mock-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const dial = MOCK_BY_ID[opts.country]?.dial ?? "1";
@@ -490,10 +707,55 @@ const mockGrizzly: typeof liveGrizzly = {
   cancel(activationId: string) {
     return this.setStatus(activationId, SET_STATUS.CANCEL);
   },
+
+  async getStatusV2(): Promise<StatusV2> {
+    return { verificationType: 0, sms: null, call: null };
+  },
+  async getV2Code(): Promise<{ code: string; via: "sms" | "call" } | null> {
+    return null;
+  },
+  async getRentPrices(): Promise<RentPrices> {
+    return {
+      services: { wa: { quantity: 10, price: 1.8, retail_price: 1.98 } },
+    };
+  },
+  async rentNumber(opts: {
+    service: string;
+    country: string;
+    durationHours: number;
+  }): Promise<RentedNumber> {
+    const dial = MOCK_BY_ID[opts.country]?.dial ?? "1";
+    return {
+      rentId: `mock-rent-${Date.now()}`,
+      phoneNumber: `${dial}${String(Date.now()).slice(-9)}`,
+      cost: 1.8,
+      endTime: new Date(
+        Date.now() + opts.durationHours * 3_600_000,
+      ).toISOString(),
+    };
+  },
+  async getServicesList(): Promise<ServiceListItem[]> {
+    return [
+      { code: "wa", name: "WhatsApp" },
+      { code: "tg", name: "Telegram" },
+      { code: "go", name: "Google, Youtube, Gmail" },
+      { code: "ig", name: "Instagram" },
+      { code: "fb", name: "Facebook" },
+      { code: "ds", name: "Discord" },
+      { code: "tw", name: "Twitter / X" },
+    ];
+  },
 };
 
-/** Vrai si le client tourne en mode démo (aucune clé, ou GRIZZLY_MOCK=1). */
-export const isGrizzlyMock = env.grizzly.mock || !env.grizzly.apiKey;
+/**
+ * Vrai si le client tourne en mode démo (données simulées). En mode HeroSMS,
+ * la démo dépend uniquement de la présence de la clé HeroSMS (GRIZZLY_MOCK ne
+ * concerne que Grizzly).
+ */
+export const isGrizzlyMock =
+  env.smsProvider === "herosms"
+    ? !env.heroSms.apiKey
+    : env.grizzly.mock || !env.grizzly.apiKey;
 
 /** Client Grizzly effectif : réel si une clé est configurée, sinon démo. */
 export const grizzly = isGrizzlyMock ? mockGrizzly : liveGrizzly;
