@@ -29,12 +29,26 @@ export const runtime = "nodejs";
    identifiant d'activation. */
 const IP_HEROSMS = new Set(["84.32.223.53", "185.138.88.87"]);
 
+/**
+ * IP réelle de l'appelant.
+ *
+ * `x-vercel-forwarded-for` est posé par Vercel lui-même et ne peut pas être
+ * falsifié par le client ; `x-forwarded-for`, si. On privilégie donc le
+ * premier. Sans ça, n'importe qui pourrait se faire passer pour HeroSMS en
+ * envoyant un en-tête bidon — et injecter un faux code dans le compte d'un
+ * client en devinant un identifiant d'activation.
+ */
 function ipSource(req: Request): string {
-  // Vercel place l'IP réelle du client en tête de x-forwarded-for.
-  const xff = req.headers.get("x-forwarded-for") ?? "";
-  return (
-    (xff.split(",")[0] ?? "").trim() || (req.headers.get("x-real-ip") ?? "")
-  );
+  const candidats = [
+    req.headers.get("x-vercel-forwarded-for"),
+    req.headers.get("x-forwarded-for"),
+    req.headers.get("x-real-ip"),
+  ];
+  for (const c of candidats) {
+    const premier = (c ?? "").split(",")[0]?.trim();
+    if (premier) return premier;
+  }
+  return "";
 }
 
 /**
@@ -67,7 +81,12 @@ export async function POST(req: Request) {
   const ip = ipSource(req);
   if (!IP_HEROSMS.has(ip)) {
     console.warn("[webhook herosms] IP refusée :", ip || "(inconnue)");
-    await tracerAppel(`REFUSÉ — IP ${ip || "inconnue"}`);
+    /* On note l'IP vue ET celle annoncée : si HeroSMS appelle depuis une
+       adresse qu'ils n'ont pas documentée, on le verra ici au lieu de
+       chercher pendant des heures pourquoi le temps réel ne marche pas. */
+    await tracerAppel(
+      `REFUSÉ — IP vue « ${ip || "inconnue"} », attendues ${[...IP_HEROSMS].join(" ou ")}`,
+    );
     return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
   }
 
