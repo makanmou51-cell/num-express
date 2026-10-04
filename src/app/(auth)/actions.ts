@@ -18,6 +18,7 @@ import {
   resetSchema,
 } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { suggestEmailFix } from "@/lib/email-typos";
 import type { AuthState, ForgotState } from "@/lib/forms";
 
 const TOO_MANY = "Trop de tentatives. Réessayez dans quelques minutes.";
@@ -26,7 +27,12 @@ export async function registerAction(
   _prev: AuthState,
   formData: FormData,
 ): Promise<AuthState> {
-  if (!(await checkRateLimit("auth"))) return { error: TOO_MANY };
+  // Clé par (IP + e-mail) : sur une IP VPN partagée, deux clients différents ne
+  // se bloquent pas ; la protection anti-brute-force reste (10/10 min par compte).
+  const rlKey = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+  if (!(await checkRateLimit("auth", rlKey))) return { error: TOO_MANY };
   const parsed = registerSchema.safeParse({
     // `?? undefined` : les champs optionnels absents renvoient `null` via
     // FormData, que Zod (.optional()) ne traite pas comme "absent".
@@ -39,6 +45,20 @@ export async function registerAction(
     return { error: parsed.error.issues[0]?.message ?? "Données invalides" };
   }
   const { name, email, password, ref } = parsed.data;
+
+  /* Faute de frappe dans le domaine (« gmil.com » pour « gmail.com »…).
+     Constaté en production : le lien de confirmation part vers une adresse
+     inexistante, le client ne reçoit rien, son compte reste bloqué, et il
+     faut le confirmer à la main. On ARRÊTE ici pour lui montrer la
+     correction — mais on ne refuse pas : s'il confirme son adresse telle
+     quelle, un second envoi passera (le champ caché `emailConfirme`). */
+  const correction = suggestEmailFix(email);
+  if (correction && formData.get("emailConfirme") !== email) {
+    return {
+      error: `Voulez-vous dire ${correction} ? Corrigez votre adresse, ou renvoyez le formulaire pour garder « ${email} ».`,
+      suggestEmail: correction,
+    };
+  }
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
@@ -77,7 +97,12 @@ export async function loginAction(
   _prev: AuthState,
   formData: FormData,
 ): Promise<AuthState> {
-  if (!(await checkRateLimit("auth"))) return { error: TOO_MANY };
+  // Clé par (IP + e-mail) : ne bloque pas des clients distincts derrière une même
+  // IP VPN ; reste 10 essais/10 min PAR compte (anti-brute-force).
+  const rlKey = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+  if (!(await checkRateLimit("auth", rlKey))) return { error: TOO_MANY };
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -129,7 +154,10 @@ export async function forgotPasswordAction(
   _prev: ForgotState,
   formData: FormData,
 ): Promise<ForgotState> {
-  if (!(await checkRateLimit("reset"))) return { error: TOO_MANY };
+  const rlKey = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+  if (!(await checkRateLimit("reset", rlKey))) return { error: TOO_MANY };
   const parsed = forgotSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "E-mail invalide" };
