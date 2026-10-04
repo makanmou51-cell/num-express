@@ -37,10 +37,37 @@ function ipSource(req: Request): string {
   );
 }
 
+/**
+ * Trace du dernier appel reçu, quel qu'en soit le sort.
+ *
+ * Pourquoi : l'URL du webhook se configure dans le compte HeroSMS, et leur
+ * API n'expose aucun moyen de relire ce réglage. Impossible donc de vérifier
+ * qu'il est bien enregistré — sauf en constatant un appel. Ce témoin rend la
+ * première réception visible dans le diagnostic, au lieu d'attendre qu'un
+ * client se plaigne pour découvrir que rien n'était branché.
+ *
+ * Stocké dans `Setting` : pas de migration pour un simple marqueur, et ça
+ * survit aux redémarrages de fonction contrairement aux journaux Vercel, qui
+ * ne sont gardés qu'une heure sur le plan Hobby.
+ */
+async function tracerAppel(etat: string) {
+  const value = `${new Date().toISOString()} · ${etat}`;
+  await prisma.setting
+    .upsert({
+      where: { key: "herosms_webhook_dernier_appel" },
+      create: { key: "herosms_webhook_dernier_appel", value },
+      update: { value },
+    })
+    .catch(() => {
+      /* le témoin ne doit jamais faire échouer un webhook */
+    });
+}
+
 export async function POST(req: Request) {
   const ip = ipSource(req);
   if (!IP_HEROSMS.has(ip)) {
     console.warn("[webhook herosms] IP refusée :", ip || "(inconnue)");
+    await tracerAppel(`REFUSÉ — IP ${ip || "inconnue"}`);
     return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
   }
 
@@ -68,7 +95,10 @@ export async function POST(req: Request) {
   });
   // Activation inconnue : on répond 200 pour qu'ils cessent de réessayer —
   // rejouer ne la fera pas apparaître.
-  if (!activation) return NextResponse.json({ ok: true, ignored: "inconnue" });
+  if (!activation) {
+    await tracerAppel(`reçu — activation ${providerId} inconnue`);
+    return NextResponse.json({ ok: true, ignored: "inconnue" });
+  }
 
   const code = body.code?.trim();
   if (!code) {
@@ -104,6 +134,9 @@ export async function POST(req: Request) {
      plutôt que d'en écrire une seconde version, qui divergerait au premier
      changement de libellé. */
   notifyCodeReceived(activation.userId, code, activation.id);
+  await tracerAppel(
+    `CODE LIVRÉ — ${activation.serviceCode} · ${activation.countryName ?? activation.countryCode}`,
+  );
 
   return NextResponse.json({ ok: true });
 }

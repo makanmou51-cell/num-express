@@ -14,6 +14,7 @@ import { Suspense } from "react";
 import { RentalsProbe } from "./rentals-probe";
 import { RestApiProbe } from "./rest-api-probe";
 import { DeliverabilityPanel } from "./deliverability";
+import { WebhookStatus } from "./webhook-status";
 
 export const metadata: Metadata = { title: "Admin — Diagnostic Grizzly" };
 export const dynamic = "force-dynamic";
@@ -73,6 +74,18 @@ export default async function GrizzlyDiagnosticPage() {
           Vérification en direct de la connexion aux API fournisseurs.
         </p>
       </div>
+
+      {/* Le webhook est-il reellement branche ? Leur API ne permet pas de
+          relire le reglage : seul un appel recu le prouve. */}
+      <Suspense
+        fallback={
+          <Card className="p-5">
+            <p className="text-sm text-muted">Lecture du témoin webhook…</p>
+          </Card>
+        }
+      >
+        <WebhookStatus />
+      </Suspense>
 
       {/* LA donnee qu'on cherchait : la delivrabilite publiee par HeroSMS,
           par pays ET par operateur. En premier, c'est le plus important. */}
