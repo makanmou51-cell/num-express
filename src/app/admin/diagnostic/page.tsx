@@ -13,6 +13,7 @@ import { usingOnlineSim, usingHeroSms } from "@/lib/grizzly/catalog";
 import { Suspense } from "react";
 import { RentalsProbe } from "./rentals-probe";
 import { FlashCallProbe } from "./flashcall-probe";
+import { TopCountriesProbe } from "./top-countries";
 
 export const metadata: Metadata = { title: "Admin — Diagnostic Grizzly" };
 export const dynamic = "force-dynamic";
@@ -101,6 +102,20 @@ export default async function GrizzlyDiagnosticPage() {
         }
       >
         <FlashCallProbe />
+      </Suspense>
+
+      {/* Le « top pays » de HeroSMS confronte a nos taux reels : un classement
+          fournisseur ne vaut que s'il predit ce qui se passe chez nous. */}
+      <Suspense
+        fallback={
+          <Card className="p-5">
+            <p className="text-sm text-muted">
+              Comparaison du classement HeroSMS avec nos taux…
+            </p>
+          </Card>
+        }
+      >
+        <TopCountriesProbe service="wa" />
       </Suspense>
 
       <Alert variant={usingOnlineSim ? "info" : "success"}>
