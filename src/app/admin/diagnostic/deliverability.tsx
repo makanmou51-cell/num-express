@@ -38,10 +38,42 @@ type Pays = {
 /* HeroSMS limite le débit (HTTP 429 RATE_LIMIT) et cette page rechargeait
    l'API à chaque visite. 30 minutes de cache suffisent : leur statistique
    porte sur 24 h glissantes, elle ne bouge pas à la minute. */
+/* NOS pays, ceux que les clients achètent réellement. Le classement mondial
+   renvoyé sans filtre ne contient ni l'Allemagne, ni les Pays-Bas, ni la
+   France, ni le Royaume-Uni — il est donc inutilisable pour décider quoi
+   mettre en avant. On demande explicitement les nôtres. */
+const NOS_PAYS = [
+  "43",
+  "48",
+  "78",
+  "16",
+  "117",
+  "36",
+  "86",
+  "56",
+  "129",
+  "15",
+  "187",
+  "32",
+  "45",
+  "175",
+  "82",
+  "172",
+  "163",
+  "174",
+  "59",
+  "128",
+] as const;
+
 const lireDelivrabilite = unstable_cache(
   async (service: string) =>
-    grizzly.getDeliverability({ service, withOperators: true, size: 25 }),
-  ["herosms:deliverability"],
+    grizzly.getDeliverability({
+      service,
+      withOperators: true,
+      size: 25,
+      countries: NOS_PAYS,
+    }),
+  ["herosms:deliverability:nos-pays"],
   { revalidate: 1800 },
 );
 
@@ -123,8 +155,10 @@ export async function DeliverabilityPanel({
         Délivrabilité mesurée par HeroSMS ({service})
       </h2>
       <p className="mt-1 text-sm text-muted">
-        Leur taux de réussite par pays et par opérateur, sur 24 h. À côté : le
-        nôtre, mesuré sur nos ventes.
+        Sur <strong>nos</strong> pays, pas leur classement mondial. Leur taux
+        sur 24 h, à côté du nôtre mesuré sur nos ventes. La colonne de droite
+        est la plus utile : dans un même pays, l&apos;opérateur fait varier la
+        réussite du simple au quintuple.
       </p>
 
       <div className="mt-4 overflow-x-auto">
@@ -182,11 +216,9 @@ export async function DeliverabilityPanel({
       </div>
 
       <p className="mt-4 border-t border-border pt-3 text-sm">
-        Si cette colonne «&nbsp;Eux&nbsp;» suit la colonne «&nbsp;Nous&nbsp;»,
-        on tient enfin de quoi{" "}
-        <strong>trier le catalogue sur la réussite</strong> au lieu du stock —
-        et de quoi <strong>choisir les opérateurs sur des mesures</strong>{" "}
-        plutôt qu&apos;au jugé.
+        La <strong>part</strong> entre parenthèses compte autant que le taux :
+        un opérateur à 40 % qui ne pèse que 11 % du stock ne sera jamais servi
+        par hasard — il faut le demander explicitement à l&apos;achat.
       </p>
     </Card>
   );

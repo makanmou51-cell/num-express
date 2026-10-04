@@ -391,6 +391,12 @@ const liveGrizzly = {
     service: string;
     withOperators?: boolean;
     size?: number;
+    /** Restreint aux pays demandés (ids HeroSMS). Sans ce filtre, l'API
+     *  renvoie le TOP MONDIAL — qui ne contient ni l'Allemagne, ni les
+     *  Pays-Bas, ni la France, ni le Royaume-Uni : précisément les pays que
+     *  nos clients achètent le plus. Inutilisable pour décider quoi mettre en
+     *  avant, d'où ce filtre explicite. */
+    countries?: readonly string[];
   }): Promise<unknown> {
     const { apiKey } = providerTarget();
     if (!apiKey) throw new GrizzlyError("BAD_KEY", "Clé API absente.");
@@ -400,6 +406,8 @@ const liveGrizzly = {
     url.searchParams.set("successCount", "low");
     url.searchParams.set("size", String(opts.size ?? 25));
     if (opts.withOperators) url.searchParams.set("withOperators", "true");
+    for (const c of opts.countries ?? [])
+      url.searchParams.append("countries[]", c);
     const res = await fetch(url, {
       headers: {
         Authorization: `ApiKey ${apiKey}`,
