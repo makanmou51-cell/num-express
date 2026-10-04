@@ -3,12 +3,11 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getUserDetail } from "@/lib/admin";
 import { refundExpiredForUser } from "@/lib/activations";
+import { durationLabel } from "@/lib/rentals";
 import { Badge, Card } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
 import { AdjustBalanceForm, RoleForm, EmailForm } from "./user-actions";
 import { UserActivity } from "./user-activity";
-import { RentalRefundButton } from "./rental-refund-button";
-import { formatWhen } from "@/lib/datetime";
 
 export const metadata: Metadata = { title: "Admin — Utilisateur" };
 
@@ -96,48 +95,6 @@ export default async function AdminUserPage({
         <EmailForm userId={user.id} defaultBody={"Bonjour {nom},\n\n"} />
       </Card>
 
-      {rentals.length > 0 && (
-        <Card className="space-y-3 p-5">
-          <h2 className="font-semibold">Locations (numéros dédiés)</h2>
-          <ul className="divide-y">
-            {rentals.map((r) => {
-              const label =
-                r.status === "ACTIVE"
-                  ? "Actif"
-                  : r.status === "CANCELLED"
-                    ? "Remboursé"
-                    : "Expiré";
-              const cls =
-                r.status === "ACTIVE"
-                  ? "bg-green-100 text-green-800"
-                  : "bg-gray-200 text-gray-600";
-              return (
-                <li key={r.id} className="flex items-center gap-3 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {r.serviceName ?? r.serviceCode} ·{" "}
-                      {r.countryName ?? r.countryCode}
-                    </p>
-                    <p className="mt-0.5 truncate font-mono text-xs text-muted">
-                      +{r.phoneNumber} · {formatWhen(r.createdAt.toISOString())}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-sm font-semibold">
-                    {formatXof(r.priceXof)}
-                  </span>
-                  <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}
-                  >
-                    {label}
-                  </span>
-                  {r.status === "ACTIVE" && <RentalRefundButton id={r.id} />}
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-      )}
-
       <UserActivity
         transactions={transactions.map((t) => ({
           id: t.id,
@@ -147,17 +104,41 @@ export default async function AdminUserPage({
           createdAt: t.createdAt.toISOString(),
           activationId: t.activationId,
         }))}
-        activations={activations.map((a) => ({
-          id: a.id,
-          serviceCode: a.serviceCode,
-          serviceName: a.serviceName,
-          countryName: a.countryName,
-          countryCode: a.countryCode,
-          status: a.status,
-          smsCode: a.smsCode,
-          priceXof: a.priceXof,
-          createdAt: a.createdAt.toISOString(),
-        }))}
+        /* Activations ET locations dans la MEME liste : un client ne fait pas
+           la difference entre « j'ai pris un numero 20 minutes » et « j'ai
+           pris un numero 1 jour ». Les locations vivaient dans un encadre
+           separe, et le compteur de la liste les ignorait - une location a
+           6 900 F pouvait passer inapercue en balayant la fiche. */
+        activations={[
+          ...activations.map((a) => ({
+            id: a.id,
+            serviceCode: a.serviceCode,
+            serviceName: a.serviceName,
+            countryName: a.countryName,
+            countryCode: a.countryCode,
+            status: a.status,
+            smsCode: a.smsCode,
+            priceXof: a.priceXof,
+            createdAt: a.createdAt.toISOString(),
+            kind: "activation" as const,
+            phoneNumber: a.phoneNumber,
+            durationLabel: null,
+          })),
+          ...rentals.map((r) => ({
+            id: r.id,
+            serviceCode: r.serviceCode,
+            serviceName: r.serviceName,
+            countryName: r.countryName,
+            countryCode: r.countryCode,
+            status: r.status,
+            smsCode: null,
+            priceXof: r.priceXof,
+            createdAt: r.createdAt.toISOString(),
+            kind: "rental" as const,
+            phoneNumber: r.phoneNumber,
+            durationLabel: durationLabel(r.durationHours),
+          })),
+        ].sort((x, y) => y.createdAt.localeCompare(x.createdAt))}
       />
     </div>
   );
