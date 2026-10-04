@@ -64,12 +64,19 @@ function ipSource(req: Request): string {
  * survit aux redémarrages de fonction contrairement aux journaux Vercel, qui
  * ne sont gardés qu'une heure sur le plan Hobby.
  */
-async function tracerAppel(etat: string) {
+/* DEUX traces distinctes, et c'est volontaire : avec une seule, le moindre
+   appel refusé (un test, un robot, un scanner) EFFAÇAIT la preuve qu'un vrai
+   appel de HeroSMS était déjà passé. On aurait conclu à tort que rien n'est
+   branché. Le succès et le refus ne se marchent donc plus dessus. */
+const CLE_SUCCES = "herosms_webhook_dernier_succes";
+const CLE_REFUS = "herosms_webhook_dernier_refus";
+
+async function tracer(cle: string, etat: string) {
   const value = `${new Date().toISOString()} · ${etat}`;
   await prisma.setting
     .upsert({
-      where: { key: "herosms_webhook_dernier_appel" },
-      create: { key: "herosms_webhook_dernier_appel", value },
+      where: { key: cle },
+      create: { key: cle, value },
       update: { value },
     })
     .catch(() => {
@@ -84,8 +91,9 @@ export async function POST(req: Request) {
     /* On note l'IP vue ET celle annoncée : si HeroSMS appelle depuis une
        adresse qu'ils n'ont pas documentée, on le verra ici au lieu de
        chercher pendant des heures pourquoi le temps réel ne marche pas. */
-    await tracerAppel(
-      `REFUSÉ — IP vue « ${ip || "inconnue"} », attendues ${[...IP_HEROSMS].join(" ou ")}`,
+    await tracer(
+      CLE_REFUS,
+      `IP vue « ${ip || "inconnue"} », attendues ${[...IP_HEROSMS].join(" ou ")}`,
     );
     return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
   }
@@ -115,7 +123,7 @@ export async function POST(req: Request) {
   // Activation inconnue : on répond 200 pour qu'ils cessent de réessayer —
   // rejouer ne la fera pas apparaître.
   if (!activation) {
-    await tracerAppel(`reçu — activation ${providerId} inconnue`);
+    await tracer(CLE_SUCCES, `appel reçu — activation ${providerId} inconnue`);
     return NextResponse.json({ ok: true, ignored: "inconnue" });
   }
 
@@ -123,6 +131,7 @@ export async function POST(req: Request) {
   if (!code) {
     // SMS sans code extrait (message publicitaire, format non reconnu) :
     // on accuse réception et on laisse l'activation en attente.
+    await tracer(CLE_SUCCES, "appel reçu — SMS sans code exploitable");
     return NextResponse.json({ ok: true, ignored: "sans code" });
   }
 
@@ -153,7 +162,8 @@ export async function POST(req: Request) {
      plutôt que d'en écrire une seconde version, qui divergerait au premier
      changement de libellé. */
   notifyCodeReceived(activation.userId, code, activation.id);
-  await tracerAppel(
+  await tracer(
+    CLE_SUCCES,
     `CODE LIVRÉ — ${activation.serviceCode} · ${activation.countryName ?? activation.countryCode}`,
   );
 

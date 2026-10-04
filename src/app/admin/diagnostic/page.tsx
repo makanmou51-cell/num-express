@@ -75,6 +75,34 @@ export default async function GrizzlyDiagnosticPage() {
         </p>
       </div>
 
+      {/* SOLDE EN PREMIER : c'est le chiffre qui coupe les ventes quand il
+          tombe a zero - tous les achats echouent d'un coup. Il etait enterre
+          sous les sondes techniques, Michael a demande a le voir d'abord. */}
+      <Card className="p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted">
+              Solde fournisseur ({PROVIDER_LABEL})
+            </p>
+            {balance.ok ? (
+              <p className="mt-1 text-2xl font-bold">
+                {balance.value.toFixed(2)} {PROVIDER_CURRENCY}
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-red-600">{balance.error}</p>
+            )}
+          </div>
+          <StatusPill ok={balance.ok} />
+        </div>
+        {balance.ok && (
+          <p className="mt-2 text-xs text-muted">
+            Conversion : 1 {env.grizzly.currency} = {settings.fxToXof} F CFA ·
+            bénéfice +{settings.tier1ProfitXof}/{settings.tier2ProfitXof}/
+            {settings.tier3ProfitXof} F CFA selon la tranche de coût
+          </p>
+        )}
+      </Card>
+
       {/* Le webhook est-il reellement branche ? Leur API ne permet pas de
           relire le reglage : seul un appel recu le prouve. */}
       <Suspense
@@ -131,12 +159,6 @@ export default async function GrizzlyDiagnosticPage() {
         <RentalsProbe service="wa" />
       </Suspense>
 
-      {/* Sonde FlashCall : dit si l'option « Appel » peut etre un vrai produit
-          ou si elle restera cosmetique. Sous Suspense, comme la precedente. */}
-
-      {/* Le « top pays » de HeroSMS confronte a nos taux reels : un classement
-          fournisseur ne vaut que s'il predit ce qui se passe chez nous. */}
-
       <Alert variant={usingOnlineSim ? "info" : "success"}>
         <strong>Fournisseur ACTIF : {PROVIDER_LABEL}</strong> — c'est lui qui
         délivre les numéros vendus sur le site.{" "}
@@ -152,32 +174,6 @@ export default async function GrizzlyDiagnosticPage() {
           ci-dessous sont simulées.
         </Alert>
       )}
-
-      {/* Solde */}
-      <Card className="p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-muted">
-              Solde fournisseur ({PROVIDER_LABEL})
-            </p>
-            {balance.ok ? (
-              <p className="mt-1 text-2xl font-bold">
-                {balance.value.toFixed(2)} {PROVIDER_CURRENCY}
-              </p>
-            ) : (
-              <p className="mt-1 text-sm text-red-600">{balance.error}</p>
-            )}
-          </div>
-          <StatusPill ok={balance.ok} />
-        </div>
-        {balance.ok && (
-          <p className="mt-2 text-xs text-muted">
-            Conversion : 1 {env.grizzly.currency} = {settings.fxToXof} F CFA ·
-            bénéfice +{settings.tier1ProfitXof}/{settings.tier2ProfitXof}/
-            {settings.tier3ProfitXof} F CFA selon la tranche de coût
-          </p>
-        )}
-      </Card>
 
       {/* Résumé des appels */}
       <div className="grid gap-4 sm:grid-cols-3">

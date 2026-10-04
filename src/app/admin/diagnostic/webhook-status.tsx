@@ -16,14 +16,21 @@ import { prisma } from "@/lib/db";
  * arrivé depuis.
  */
 export async function WebhookStatus() {
-  const [trace, enAttente] = await Promise.all([
+  const [succes, refus, enAttente] = await Promise.all([
     prisma.setting.findUnique({
-      where: { key: "herosms_webhook_dernier_appel" },
+      where: { key: "herosms_webhook_dernier_succes" },
+    }),
+    prisma.setting.findUnique({
+      where: { key: "herosms_webhook_dernier_refus" },
     }),
     prisma.activation.count({ where: { status: "WAITING_CODE" } }),
   ]);
 
-  const recu = Boolean(trace);
+  /* Seul un appel ACCEPTÉ prouve que HeroSMS est branché. Un refus peut
+     venir de n'importe qui — un test, un robot, un scanner de ports. Les
+     deux sont affichés séparément pour qu'un refus ne fasse pas croire à
+     une panne, ni l'inverse. */
+  const recu = Boolean(succes);
 
   return (
     <Card className="p-5">
@@ -36,8 +43,8 @@ export async function WebhookStatus() {
       >
         {recu ? (
           <>
-            <strong>Branché.</strong> Dernier appel reçu&nbsp;:{" "}
-            <code className="text-xs">{trace?.value}</code>
+            <strong>Branché.</strong> Dernier appel de HeroSMS&nbsp;:{" "}
+            <code className="text-xs">{succes?.value}</code>
           </>
         ) : (
           <>
@@ -63,6 +70,18 @@ export async function WebhookStatus() {
           <dd className="font-semibold tabular-nums">{enAttente}</dd>
         </div>
       </dl>
+
+      {refus && (
+        <p className="mt-3 rounded-lg bg-gray-100 px-3 py-2 text-xs text-muted">
+          Dernier appel <strong>refusé</strong> : <code>{refus.value}</code>
+          <span className="mt-1 block">
+            Un refus ne vient pas forcément de HeroSMS — n&apos;importe qui peut
+            frapper à cette adresse. Il n&apos;est inquiétant que si l&apos;IP
+            vue appartient à HeroSMS&nbsp;: cela voudrait dire qu&apos;ils
+            appellent depuis une adresse non documentée.
+          </span>
+        </p>
+      )}
 
       {!recu && enAttente === 0 && (
         <p className="mt-3 text-xs text-muted">
