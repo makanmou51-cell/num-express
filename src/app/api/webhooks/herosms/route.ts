@@ -121,7 +121,14 @@ export async function POST(req: Request) {
   // Activation inconnue : on répond 200 pour qu'ils cessent de réessayer —
   // rejouer ne la fera pas apparaître.
   if (!activation) {
-    await tracer(CLE_SUCCES, `appel reçu — activation ${providerId} inconnue`);
+    /* PAS une preuve que HeroSMS appelle : n'importe qui peut poster un
+       identifiant au hasard — c'est exactement ce qu'a fait mon propre test,
+       et le témoin affichait « Branché » à tort. Seul un appel venant de
+       leurs adresses compte ici. */
+    await tracer(
+      ipConnue ? CLE_SUCCES : CLE_REFUS,
+      `activation ${providerId} inconnue · IP ${ipConnue ? "HeroSMS" : `« ${ip || "?"} »`}`,
+    );
     return NextResponse.json({ ok: true, ignored: "inconnue" });
   }
 
@@ -129,7 +136,10 @@ export async function POST(req: Request) {
   if (!code) {
     // SMS sans code extrait (message publicitaire, format non reconnu) :
     // on accuse réception et on laisse l'activation en attente.
-    await tracer(CLE_SUCCES, "appel reçu — SMS sans code exploitable");
+    await tracer(
+      ipConnue ? CLE_SUCCES : CLE_REFUS,
+      `SMS sans code exploitable · IP ${ipConnue ? "HeroSMS" : `« ${ip || "?"} »`}`,
+    );
     return NextResponse.json({ ok: true, ignored: "sans code" });
   }
 
