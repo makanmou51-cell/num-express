@@ -85,18 +85,16 @@ async function tracer(cle: string, etat: string) {
 }
 
 export async function POST(req: Request) {
+  /* L'IP n'est plus un VERROU, mais un raccourci de confiance.
+     Leur documentation est explicite : « si votre serveur ne répond toujours
+     pas, nous ARRÊTERONS les envois ». Renvoyer 403 sur une adresse non
+     listée revenait donc à faire désactiver le webhook par HeroSMS
+     lui-même — alors qu'ils ne documentent que deux adresses et peuvent en
+     changer sans prévenir. On répond désormais 200 dans tous les cas, et
+     c'est la VÉRIFICATION DU CODE auprès d'eux qui fait office de sécurité
+     (plus bas) : un faux code ne passe pas, quelle que soit l'IP. */
   const ip = ipSource(req);
-  if (!IP_HEROSMS.has(ip)) {
-    console.warn("[webhook herosms] IP refusée :", ip || "(inconnue)");
-    /* On note l'IP vue ET celle annoncée : si HeroSMS appelle depuis une
-       adresse qu'ils n'ont pas documentée, on le verra ici au lieu de
-       chercher pendant des heures pourquoi le temps réel ne marche pas. */
-    await tracer(
-      CLE_REFUS,
-      `IP vue « ${ip || "inconnue"} », attendues ${[...IP_HEROSMS].join(" ou ")}`,
-    );
-    return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
-  }
+  const ipConnue = IP_HEROSMS.has(ip);
 
   let body: {
     activationId?: number | string;
@@ -133,6 +131,32 @@ export async function POST(req: Request) {
     // on accuse réception et on laisse l'activation en attente.
     await tracer(CLE_SUCCES, "appel reçu — SMS sans code exploitable");
     return NextResponse.json({ ok: true, ignored: "sans code" });
+  }
+
+  /* SÉCURITÉ — on ne croit pas un code sur parole venant d'une adresse
+     inconnue. Sans cette vérification, n'importe qui pourrait injecter un
+     faux code dans le compte d'un client en devinant un identifiant
+     d'activation. On interroge donc HeroSMS : si leur réponse ne confirme
+     pas le code, on ignore l'appel — mais on répond quand même 200 pour ne
+     pas déclencher leur mécanisme d'abandon.
+     Quand l'IP est l'une des leurs, on fait l'économie de cet appel. */
+  if (!ipConnue) {
+    let confirme = false;
+    try {
+      const v2 = await grizzly.getV2Code(providerId);
+      confirme = v2?.code === code;
+    } catch {
+      confirme = false;
+    }
+    if (!confirme) {
+      console.warn("[webhook herosms] code non confirmé — IP", ip || "?");
+      await tracer(
+        CLE_REFUS,
+        `code non confirmé par HeroSMS · IP vue « ${ip || "inconnue"} »`,
+      );
+      return NextResponse.json({ ok: true, ignored: "non confirmé" });
+    }
+    await tracer(CLE_REFUS, `IP inattendue « ${ip} » mais code CONFIRMÉ`);
   }
 
   /* Revendication atomique : le webhook et le polling de la page arrivent
