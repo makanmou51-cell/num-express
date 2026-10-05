@@ -29,12 +29,18 @@ export default async function AdminLayout({
        éléments un à un, où le prochain écran ajouté serait oublié. */
     <div className="flex min-h-screen flex-col" data-clarity-mask="true">
       <header className="border-b bg-white">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Link href="/admin">
+        {/* `flex-wrap` et `min-w-0` : sans eux, logo + badge + « Site » +
+            « Déconnexion » tenaient sur une seule ligne infranchissable. Les
+            enfants d'un flex ne rétrécissent pas sous la largeur de leur
+            contenu (min-width: auto), donc la rangée débordait et rendait
+            TOUTE la page admin plus large que l'écran d'un téléphone — texte
+            coupé à gauche comme à droite, sur chaque page. */}
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Link href="/admin" className="min-w-0">
               <Logo />
             </Link>
-            <Badge className="bg-slate-800 text-white">Admin</Badge>
+            <Badge className="shrink-0 bg-slate-800 text-white">Admin</Badge>
           </div>
           <nav className="hidden items-center gap-1 md:flex">
             {NAV.map((i) => (
@@ -47,10 +53,10 @@ export default async function AdminLayout({
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1">
             <Link
               href="/dashboard"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-muted hover:bg-gray-100"
+              className="rounded-lg px-2.5 py-2 text-sm font-medium text-muted hover:bg-gray-100"
             >
               ↩ Site
             </Link>
