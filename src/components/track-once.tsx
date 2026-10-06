@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { trackMeta } from "@/components/meta-pixel";
+import { trackMeta } from "@/components/meta-track";
 
 /**
  * Déclenche UNE SEULE FOIS un événement de conversion Meta.

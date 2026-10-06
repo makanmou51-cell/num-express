@@ -1,17 +1,20 @@
-"use client";
-
 import Script from "next/script";
-import { useEffect } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
 
 /**
- * Pixel Meta (Facebook / Instagram).
+ * Pixel Meta (Facebook / Instagram) — chargement du script.
  *
  * Sans lui, une campagne Facebook ne peut optimiser que sur le CLIC : Meta
  * ignore qui, parmi les gens qu'il envoie, s'inscrit réellement. C'est ce
  * qu'on a vécu sur TikTok — 2 755 vues pour 43 inscriptions. Avec le pixel et
  * l'événement « inscription terminée », Meta va chercher des profils qui
  * ressemblent à ceux qui s'inscrivent vraiment.
+ *
+ * COMPOSANT SERVEUR, volontairement. La première version portait « use
+ * client » : un `<Script strategy="lazyOnload">` y est injecté seulement
+ * APRÈS l'hydratation, donc il n'arrivait jamais dans le HTML servi. Vérifié
+ * en production, l'identifiant était introuvable dans la page alors que
+ * Clarity — composant serveur — y figurait. Tout ce qui a besoin de hooks
+ * vit désormais dans `meta-track.tsx`.
  *
  * ── Ce qu'on NE laisse PAS faire ────────────────────────────────────────
  * `autoConfig: false` coupe la collecte automatique des clics de boutons et
@@ -26,46 +29,6 @@ import { usePathname, useSearchParams } from "next/navigation";
  */
 
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim();
-
-declare global {
-  interface Window {
-    fbq?: ((...args: unknown[]) => void) & { callMethod?: unknown };
-    _fbq?: unknown;
-  }
-}
-
-/** Déclenche un événement standard Meta. Sans effet si le pixel est absent. */
-export function trackMeta(
-  event: string,
-  params?: Record<string, string | number>,
-) {
-  try {
-    window.fbq?.("track", event, params);
-  } catch {
-    /* un bloqueur de publicité, une navigation privée… : sans conséquence */
-  }
-}
-
-/**
- * Suit les changements de page d'une navigation côté client.
- *
- * SÉPARÉ du chargement du pixel, et ce n'est pas cosmétique : `useSearchParams`
- * fait sortir tout son sous-arbre du rendu serveur. Tant que ce composant
- * enveloppait aussi le <Script>, celui-ci n'apparaissait PAS dans le HTML —
- * vérifié en production, l'identifiant du pixel était introuvable dans la
- * page alors que Clarity, lui, y figurait. Le script doit rester hors de
- * cette frontière ; seul le suivi de navigation la franchit.
- */
-export function MetaPageViews() {
-  const pathname = usePathname();
-  const search = useSearchParams();
-  useEffect(() => {
-    /* Next.js ne recharge pas la page entre deux écrans : sans ce rappel,
-       Meta ne verrait que la toute première page de chaque visite. */
-    trackMeta("PageView");
-  }, [pathname, search]);
-  return null;
-}
 
 export function MetaPixel() {
   // Pas de pixel configuré, ou développement : on ne charge rien.
