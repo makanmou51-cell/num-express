@@ -5,6 +5,7 @@ import { listTransactions, numberPriceRange } from "@/lib/wallet";
 import { reconcilePendingTopups } from "@/lib/payments";
 import { Alert, Card } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
+import { TrackOnce } from "@/components/track-once";
 import { TopupForm } from "./topup-form";
 import { TopupPending } from "./topup-pending";
 import { WalletHistory } from "./wallet-history";
@@ -49,6 +50,10 @@ export default async function WalletPage({
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Mon solde</h1>
 
+      {/* Conversion « achat » : une recharge creditee est le SEUL moment ou
+          de l'argent entre reellement. C'est sur cet evenement qu'il faudra
+          optimiser quand le pixel aura assez de donnees. */}
+      {credited > 0 && <TrackOnce event="Purchase" />}
       {credited > 0 && (
         <Alert variant="success">
           Paiement confirmé : votre solde a été crédité. Merci !

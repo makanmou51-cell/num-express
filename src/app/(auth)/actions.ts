@@ -90,7 +90,12 @@ export async function registerAction(
   }
 
   await createSession(user.id, 0);
-  redirect("/dashboard");
+  /* `?bienvenue=1` sert UNIQUEMENT a declencher l'evenement « inscription
+     terminee » cote navigateur : l'action tourne sur le serveur, elle ne peut
+     pas parler au pixel. Sans cet evenement, Meta optimise sur le clic et
+     nous envoie du monde qui ne s'inscrit jamais - 2 755 vues pour 43
+     inscriptions sur TikTok. */
+  redirect("/dashboard?bienvenue=1");
 }
 
 export async function loginAction(
