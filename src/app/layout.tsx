@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import { Suspense } from "react";
 import { Clarity } from "@/components/clarity";
-import { MetaPixel } from "@/components/meta-pixel";
+import { MetaPixel, MetaPageViews } from "@/components/meta-pixel";
 import "./globals.css";
 import { InstallPrompt } from "@/components/install-prompt";
 import { ChatButton } from "@/components/chat-button";
@@ -60,10 +60,13 @@ export default function RootLayout({
         {/* Mesure d'audience (Clarity). Voir le composant : numero, code SMS et
             espace admin sont occultes avant tout envoi. */}
         <Clarity />
-        {/* Pixel Meta. Sous Suspense : il lit les parametres d'URL pour
-            suivre les changements de page, ce que Next exige d'isoler. */}
+        {/* Pixel Meta. Le SCRIPT reste hors Suspense : useSearchParams fait
+            sortir son sous-arbre du rendu serveur, et le pixel n'arrivait
+            alors jamais dans la page. Seul le suivi de navigation, qui lit
+            l'URL, est isole. */}
+        <MetaPixel />
         <Suspense fallback={null}>
-          <MetaPixel />
+          <MetaPageViews />
         </Suspense>
         {/* Lanceur du chat, placé au-dessus de la barre d'onglets. */}
         <ChatButton />

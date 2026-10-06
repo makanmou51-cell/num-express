@@ -46,8 +46,17 @@ export function trackMeta(
   }
 }
 
-/** Suit les changements de page d'une navigation côté client. */
-function PageViews() {
+/**
+ * Suit les changements de page d'une navigation côté client.
+ *
+ * SÉPARÉ du chargement du pixel, et ce n'est pas cosmétique : `useSearchParams`
+ * fait sortir tout son sous-arbre du rendu serveur. Tant que ce composant
+ * enveloppait aussi le <Script>, celui-ci n'apparaissait PAS dans le HTML —
+ * vérifié en production, l'identifiant du pixel était introuvable dans la
+ * page alors que Clarity, lui, y figurait. Le script doit rester hors de
+ * cette frontière ; seul le suivi de navigation la franchit.
+ */
+export function MetaPageViews() {
   const pathname = usePathname();
   const search = useSearchParams();
   useEffect(() => {
@@ -63,9 +72,8 @@ export function MetaPixel() {
   if (!PIXEL_ID || process.env.NODE_ENV !== "production") return null;
 
   return (
-    <>
-      <Script id="meta-pixel" strategy="lazyOnload">
-        {`!function(f,b,e,v,n,t,s)
+    <Script id="meta-pixel" strategy="lazyOnload">
+      {`!function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
 n.callMethod.apply(n,arguments):n.queue.push(arguments)};
 if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
@@ -76,8 +84,6 @@ s.parentNode.insertBefore(t,s)}(window,document,'script',
 fbq('set','autoConfig',false,'${PIXEL_ID}');
 fbq('init','${PIXEL_ID}');
 fbq('track','PageView');`}
-      </Script>
-      <PageViews />
-    </>
+    </Script>
   );
 }
