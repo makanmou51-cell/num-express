@@ -6,6 +6,7 @@ import {
   listRecentTopups,
   listRecentPurchases,
 } from "@/lib/admin";
+import { getProfit } from "@/lib/profit";
 import { Card } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
 import { formatWhen } from "@/lib/datetime";
@@ -14,8 +15,9 @@ import { SalesChart } from "./sales-chart";
 export const metadata: Metadata = { title: "Admin — Vue d'ensemble" };
 
 export default async function AdminHome() {
-  const [s, sales, topups, purchases] = await Promise.all([
+  const [s, benefice, sales, topups, purchases] = await Promise.all([
     getAdminStats(),
+    getProfit(),
     getSalesData(),
     listRecentTopups(15),
     listRecentPurchases(15),
@@ -26,7 +28,7 @@ export default async function AdminHome() {
       <h1 className="text-2xl font-bold">Vue d'ensemble</h1>
 
       {/* Chiffre d'affaires réel (recharges) — la vraie mesure */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-dark to-[#0d5a37] p-6 text-white shadow-lg">
           <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-400/20 blur-2xl" />
           <p className="text-sm text-white/70">Chiffre d'affaires réel</p>
@@ -41,6 +43,21 @@ export default async function AdminHome() {
                 {formatXof(s.manualCredits)} crédités à la main, non comptés
               </>
             )}
+          </p>
+        </div>
+
+        {/* BENEFICE — a cote du chiffre d'affaires, parce que les deux se
+            confondent facilement : l'argent encaisse n'est pas gagne. Une
+            partie dort sur les soldes clients (une dette), et sur chaque
+            vente il faut retrancher ce qu'on a paye au fournisseur. */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-6 text-white shadow-lg">
+          <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-400/20 blur-2xl" />
+          <p className="text-sm text-white/70">Bénéfice net</p>
+          <p className="mt-1 text-4xl font-extrabold tracking-tight">
+            {formatXof(benefice.net)}
+          </p>
+          <p className="mt-2 text-xs text-white/60">
+            Marge sur ce qui a été livré, commissions de parrainage déduites
           </p>
         </div>
 
@@ -99,6 +116,47 @@ export default async function AdminHome() {
         />
         <Tile label="Commissions versées" value={formatXof(s.commissions)} />
       </div>
+
+      {/* LES RESERVES DU BENEFICE. Un chiffre dont on ignore les limites est
+          plus dangereux qu'un chiffre absent : ces deux lignes disent
+          exactement ce que « Benefice net » ne contient pas. */}
+      <Card className="p-5">
+        <h2 className="font-semibold">Ce que le bénéfice ne compte pas</h2>
+        <dl className="mt-3 space-y-2.5 text-sm">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <dt>
+              Marge Boost
+              <span className="block text-xs text-muted">
+                Les prix Boost sont fixés à la main, le coût Peakerr n&apos;est
+                pas enregistré — impossible de calculer la marge
+              </span>
+            </dt>
+            <dd className="font-semibold tabular-nums">
+              {formatXof(benefice.caBoost)} de CA
+            </dd>
+          </div>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-t border-border pt-2.5">
+            <dt>
+              Coût des ventes remboursées
+              <span className="block text-xs text-muted">
+                HeroSMS ne rembourse que <strong>partiellement</strong> une
+                activation annulée. Chaque échec coûte donc quelque chose, et ce
+                montant n&apos;est écrit nulle part — le bénéfice affiché est{" "}
+                <strong>optimiste</strong>.
+              </span>
+            </dt>
+            <dd className="font-semibold tabular-nums text-amber-700">
+              {benefice.ventesRemboursees.toLocaleString("fr-FR")} ventes
+            </dd>
+          </div>
+        </dl>
+        <p className="mt-3 border-t border-border pt-3 text-xs text-muted">
+          Détail du calcul : marge numéros{" "}
+          <strong>{formatXof(benefice.margeNumeros)}</strong> + marge locations{" "}
+          <strong>{formatXof(benefice.margeLocations)}</strong> − commissions{" "}
+          <strong>{formatXof(benefice.commissions)}</strong>.
+        </p>
+      </Card>
     </div>
   );
 }
