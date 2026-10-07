@@ -140,6 +140,89 @@ body {
   }
 }
 
+/* ═══ Le téléphone du hero : les codes TOMBENT, en boucle ═══
+   Le visuel était figé — trois messages posés là, immobiles. Or c'est LA
+   démonstration du produit : « recevez vos codes en quelques secondes ». Un
+   écran statique ne le raconte pas, il l'affirme.
+   Cycle de 9 s : chaque message monte, reste affiché, s'efface, et tout
+   recommence. Les décalages sont portés par animation-delay : la boucle étant
+   infinie, le retard déplace toute la ligne de temps, donc l'ordre d'arrivée
+   est conservé à chaque tour — sans une ligne de JavaScript.
+   Les trois lignes étant décalées, l'écran n'est jamais vide : il reste
+   toujours un message affiché pendant qu'un autre se renouvelle.
+   Uniquement opacity/transform : carte graphique, fil principal libre — on
+   vise des téléphones d'entrée de gamme en 3G. */
+@keyframes neMsgLoop {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.95);
+  }
+  6% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  97%,
+  100% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+}
+
+/* Le code s'illumine au moment où il arrive, puis se calme.
+   Même période de 9 s et même retard que la carte qui le porte : le flash
+   tombe donc exactement sur son atterrissage, sans aucune synchronisation
+   côté JavaScript. */
+@keyframes neCodeGlow {
+  0%,
+  3% {
+    background-color: rgb(22 163 74 / 0);
+    transform: scale(1);
+  }
+  8% {
+    background-color: rgb(22 163 74 / 0.2);
+    transform: scale(1.09);
+  }
+  22% {
+    background-color: rgb(22 163 74 / 0.08);
+    transform: scale(1);
+  }
+  40%,
+  100% {
+    background-color: rgb(22 163 74 / 0);
+    transform: scale(1);
+  }
+}
+
+/* Un reflet balaie l'écran : le signe le moins coûteux qu'un visuel soit
+   vivant plutôt qu'une capture collée. Balayage court (1,4 s) puis longue
+   attente hors cadre — un reflet permanent deviendrait du bruit. */
+@keyframes neSheen {
+  0% {
+    transform: translateX(-130%) skewX(-18deg);
+  }
+  18%,
+  100% {
+    transform: translateX(430%) skewX(-18deg);
+  }
+}
+
+/* La pastille « Actif » respire : un numéro en ligne, pas une étiquette. */
+@keyframes neLiveDot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
 /* Un halo vert qui pulse UNE SEULE FOIS autour du code.
    Pas de boucle infinie : une animation qui ne s'arrête jamais finit par
    fatiguer et devient du bruit. Celle-ci marque l'instant, puis disparaît. */
@@ -176,5 +259,23 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* ATTENTION : la règle ci-dessus ne suffit pas pour les messages du
+     téléphone. Ramenée à 0,01 ms et jouée une seule fois, `neMsgLoop`
+     s'arrête sur sa dernière image — qui est `opacity: 0`. Les trois messages
+     disparaîtraient donc purement et simplement pour qui demande moins de
+     mouvement, et le héros montrerait un téléphone vide.
+     On coupe l'animation et on rétablit l'état final visible. */
+  .ne-msg {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Le reflet n'a aucun contenu : on le retire au lieu de le figer en travers
+     de l'écran. */
+  .ne-sheen {
+    display: none !important;
   }
 }

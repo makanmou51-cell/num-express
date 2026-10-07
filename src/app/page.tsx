@@ -1027,14 +1027,57 @@ function Orb({
   );
 }
 
-/* Maquette de téléphone (visuel héros, 100% CSS/SVG, sans image externe). */
+/* Maquette de téléphone (visuel héros, 100% CSS/SVG, sans image externe).
+ *
+ * ── Pourquoi elle bouge ────────────────────────────────────────────────────
+ * Cet écran était figé : trois messages posés là, immobiles. C'était pourtant
+ * la seule chose du héros qui pouvait DÉMONTRER la promesse au lieu de
+ * l'écrire. « Recevez vos codes en quelques secondes » affiché à côté d'une
+ * capture morte, c'est une affirmation ; un code qui tombe sous les yeux du
+ * visiteur, c'est une preuve.
+ *
+ * Les trois messages arrivent donc l'un après l'autre, en boucle de 9 s, du
+ * plus ancien (en bas) au plus récent (en haut) — l'ordre d'une vraie liste de
+ * notifications. Le code vert s'illumine pile à l'atterrissage de sa carte.
+ *
+ * ── Ce que ça coûte ────────────────────────────────────────────────────────
+ * Zéro JavaScript, zéro image, zéro octet de réseau en plus : tout passe par
+ * animation-delay, et les propriétés animées sont opacity et transform, que la
+ * carte graphique traite sans réveiller le fil principal. Les trois messages
+ * gardent leur place dans la mise en page même invisibles, donc aucun décalage
+ * visuel au chargement (CLS). On vise des téléphones d'entrée de gamme en 3G :
+ * ce visuel ne doit rien leur prendre.
+ *
+ * Le détail qui compte pour l'accessibilité est dans globals.css : la règle
+ * prefers-reduced-motion globale raccourcit les animations à 0,01 ms et les
+ * joue une seule fois, ce qui laisserait ces messages sur leur dernière image
+ * — opacity: 0, un téléphone vide. La classe .ne-msg existe pour couper
+ * l'animation et rétablir l'état visible dans ce cas.
+ */
+
+/* Rythme de la boucle. Un seul endroit à toucher pour régler la cadence. */
+const CYCLE = "9s";
+const BOUCLE_MSG = "neMsgLoop " + CYCLE + " ease-out infinite backwards";
+/* Du plus ancien au plus récent : Instagram, puis Telegram, puis le code. */
+const ARRIVEE_INSTAGRAM = "0.2s";
+const ARRIVEE_TELEGRAM = "1.3s";
+const ARRIVEE_CODE = "2.4s";
+
 function PhoneMockup() {
   return (
     <div className="relative w-[260px] sm:w-[300px]">
       <div className="absolute -inset-6 -z-10 rounded-[3rem] bg-primary/15 blur-2xl" />
       <div className="relative rounded-[2.6rem] border-[10px] border-gray-900 bg-gray-900 shadow-2xl">
         <div className="absolute left-1/2 top-0 z-10 h-6 w-32 -translate-x-1/2 rounded-b-2xl bg-gray-900" />
-        <div className="overflow-hidden rounded-[1.9rem] bg-gray-50">
+        <div className="relative overflow-hidden rounded-[1.9rem] bg-gray-50">
+          {/* Reflet qui balaie l'écran, sur un rythme volontairement différent
+              de celui des messages : deux cadences non synchrones se lisent
+              comme plus organiques qu'un seul battement. */}
+          <div
+            aria-hidden="true"
+            className="ne-sheen pointer-events-none absolute inset-y-0 -left-1/3 z-20 w-1/3 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+            style={{ animation: "neSheen 8s ease-in-out infinite" }}
+          />
           {/* barre d'état */}
           <div className="flex items-center justify-between px-6 pb-2 pt-3 text-[11px] font-semibold text-gray-500">
             <span>9:41</span>
@@ -1061,14 +1104,24 @@ function PhoneMockup() {
               <span className="font-mono text-sm font-bold text-gray-800">
                 +1 202 345 3494
               </span>
-              <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+              <span className="flex items-center gap-1.5 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+                {/* La pastille respire : un numéro en ligne, pas une
+                    étiquette imprimée. */}
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 rounded-full bg-green-600"
+                  style={{ animation: "neLiveDot 1.8s ease-in-out infinite" }}
+                />
                 Actif
               </span>
             </div>
           </div>
           {/* messages */}
           <div className="space-y-2.5 bg-white px-3 pb-8 pt-3">
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3">
+            <div
+              className="ne-msg rounded-2xl border border-primary/20 bg-primary/5 p-3"
+              style={{ animation: BOUCLE_MSG, animationDelay: ARRIVEE_CODE }}
+            >
               <div className="flex items-center gap-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
                   T
@@ -1077,19 +1130,38 @@ function PhoneMockup() {
                   Telegram
                 </span>
                 <span className="ml-auto text-[10px] text-gray-400">
-                  à l'instant
+                  à l&apos;instant
                 </span>
               </div>
               <p className="mt-2 text-xs text-gray-600">
                 Votre code est{" "}
-                <span className="font-mono text-base font-bold tracking-widest text-primary">
+                <span
+                  className="inline-block rounded-md px-1 font-mono text-base font-bold tracking-widest text-primary"
+                  style={{
+                    /* Même période et même retard que la carte qui le porte :
+                       le flash tombe donc exactement sur son atterrissage,
+                       sans aucune synchronisation côté JavaScript. */
+                    animation: "neCodeGlow " + CYCLE + " ease-out infinite",
+                    animationDelay: ARRIVEE_CODE,
+                  }}
+                >
                   336-291
                 </span>
               </p>
             </div>
 
-            <MsgRow letter="T" name="Telegram" text="Login code : 55193" />
-            <MsgRow letter="ig" name="Instagram" text="827 401 — code" />
+            <MsgRow
+              letter="T"
+              name="Telegram"
+              text="Login code : 55193"
+              delay={ARRIVEE_TELEGRAM}
+            />
+            <MsgRow
+              letter="ig"
+              name="Instagram"
+              text="827 401 — code"
+              delay={ARRIVEE_INSTAGRAM}
+            />
           </div>
         </div>
       </div>
@@ -1101,13 +1173,18 @@ function MsgRow({
   letter,
   name,
   text,
+  delay,
 }: {
   letter: string;
   name: string;
   text: string;
+  delay: string;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-2xl bg-gray-50 p-2.5">
+    <div
+      className="ne-msg flex items-center gap-2 rounded-2xl bg-gray-50 p-2.5"
+      style={{ animation: BOUCLE_MSG, animationDelay: delay }}
+    >
       <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-200 text-[10px] font-bold text-gray-600">
         {letter}
       </span>
