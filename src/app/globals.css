@@ -108,6 +108,38 @@ body {
   }
 }
 
+/* Entrée en cascade du hero : chaque bloc monte légèrement et se révèle.
+   ATTENTION — le titre <h1> en est VOLONTAIREMENT exclu. C'est lui le plus
+   gros élément de l'écran, donc celui que Google chronomètre (LCP). Le faire
+   démarrer à opacity:0 retarderait l'affichage perçu de 400 ms, sur une
+   audience déjà en 3G à Cotonou. Le titre s'affiche donc tout de suite ; seul
+   ce qui vient APRÈS lui se met en mouvement, ce qui guide l'œil vers le
+   bouton d'achat sans rien ralentir. */
+@keyframes neRise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Un battement UNIQUE sur le bouton d'achat, une seconde après l'arrivée.
+   Le temps que l'œil ait fini de lire le titre et la phrase. Il attire sans
+   clignoter : une boucle infinie sur un bouton principal se lit comme une
+   publicité et finit par être ignorée. */
+@keyframes nePulseCta {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
 /* Un halo vert qui pulse UNE SEULE FOIS autour du code.
    Pas de boucle infinie : une animation qui ne s'arrête jamais finit par
    fatiguer et devient du bruit. Celle-ci marque l'instant, puis disparaît. */
