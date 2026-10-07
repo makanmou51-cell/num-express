@@ -65,6 +65,7 @@ export function CopyField({
   grouped = true,
   size = "md",
   hint,
+  reveal = false,
 }: {
   label: string;
   value: string;
@@ -73,6 +74,13 @@ export function CopyField({
   grouped?: boolean;
   size?: "md" | "lg";
   hint?: string;
+  /**
+   * Fait apparaître la valeur caractère par caractère.
+   * Réservé au CODE reçu : c'est le moment de récompense du client. On ne
+   * l'applique pas au numéro de téléphone, qui est une information de
+   * référence qu'on vient relire — l'animer à chaque affichage agacerait.
+   */
+  reveal?: boolean;
 }) {
   const [state, setState] = useState<State>("idle");
   const valueRef = useRef<HTMLSpanElement>(null);
@@ -127,7 +135,23 @@ export function CopyField({
               : "text-2xl tracking-wide"
           } ${copied ? "text-white" : t.value}`}
         >
-          {shown}
+          {reveal
+            ? /* Chaque caractère porte son propre délai. `aria-hidden` sur
+                 les fragments et la valeur complète sur le parent : un
+                 lecteur d'écran doit entendre « 847291 », pas six chiffres
+                 détachés. */
+              Array.from(shown).map((c, i) => (
+                <span
+                  key={i}
+                  aria-hidden="true"
+                  className="inline-block animate-[neDigitIn_320ms_ease-out_backwards]"
+                  style={{ animationDelay: `${i * 55}ms` }}
+                >
+                  {c === " " ? " " : c}
+                </span>
+              ))
+            : shown}
+          {reveal && <span className="sr-only">{shown}</span>}
         </span>
 
         {/* L'affordance de copie fait partie du bloc : pas de <button> imbriqué

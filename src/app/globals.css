@@ -1,13 +1,36 @@
 @import "tailwindcss";
 
 :root {
+  /* ── Couleurs — palette « Hyperlocal Green » (catalogue ui-ux-pro-max).
+     Contrastes MESURÉS : --primary donne 5,48:1 en texte sur blanc ET en fond
+     sous du blanc. L'ancien #16a34a ne faisait que 3,30:1 → échec du 4,5:1. */
   --background: #f7f8fa;
   --foreground: #0f172a;
   --card: #ffffff;
   --border: #e5e7eb;
-  --muted: #64748b;
-  --primary: #16a34a;
+  --muted: #475569; /* 7,13:1 (l'ancien #64748b tombait à 4,47:1) */
+  --primary: #047857;
   --primary-foreground: #ffffff;
+  --primary-dark: #0b3d24; /* teinte de marque : héros, pied de page */
+
+  /* Sémantique : la marque ne doit plus servir à TOUT (règle color-semantic). */
+  --accent: #c2410c; /* action de conversion — 5,18:1 avec du blanc */
+  --accent-foreground: #ffffff;
+  --success: #15803d;
+  --warning: #b45309;
+  --destructive: #dc2626;
+  --ring: #047857;
+
+  /* ── Rayons : 3 crans, fini les 7 valeurs concurrentes ── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* ── Mouvement : 3 tokens, sortie plus rapide que l'entrée ── */
+  --motion-press: 90ms;
+  --motion-ui: 180ms;
+  --motion-enter: 240ms;
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @theme inline {
@@ -18,6 +41,12 @@
   --color-muted: var(--muted);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-dark: var(--primary-dark);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -30,4 +59,90 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Flottement du visuel d'accueil — déplacé ici depuis un <style> injecté
+   par dangerouslySetInnerHTML dans le corps de la page. */
+@keyframes neFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-16px);
+  }
+}
+
+/* Arrivée du code SMS : le bloc se déplie au lieu d'apparaître d'un coup.
+   Le client revient de WhatsApp et doit voir que quelque chose a changé.
+   Neutralisé par le bloc prefers-reduced-motion plus bas. */
+@keyframes neCodeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Chaque caractère du code se pose l'un après l'autre.
+   L'arrivée du code est LE moment qui décide si le client est content : il
+   revient de WhatsApp, il a attendu, parfois il a déjà échoué plusieurs fois.
+   Un code qui se pose chiffre par chiffre se lit comme une récompense, là où
+   un bloc qui apparaît d'un coup se lit comme un simple affichage.
+   Uniquement `opacity` et `transform` : la carte graphique s'en charge, le
+   fil principal reste libre — on vise des téléphones d'entrée de gamme en 3G. */
+@keyframes neDigitIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.9);
+  }
+  60% {
+    transform: translateY(-1px) scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Un halo vert qui pulse UNE SEULE FOIS autour du code.
+   Pas de boucle infinie : une animation qui ne s'arrête jamais finit par
+   fatiguer et devient du bruit. Celle-ci marque l'instant, puis disparaît. */
+@keyframes neSuccessRing {
+  from {
+    box-shadow: 0 0 0 0 rgb(22 163 74 / 0.45);
+  }
+  to {
+    box-shadow: 0 0 0 18px rgb(22 163 74 / 0);
+  }
+}
+
+/* Note : une règle CSS sur `#tidio-chat-iframe` a été essayée ici pour
+   remonter la bulle Tidio au-dessus de la barre d'onglets. Elle est restée
+   SANS EFFET — le widget est injecté depuis une iframe dont l'URL est
+   versionnée et hachée, son arborescence n'est pas adressable depuis la page.
+   La solution retenue est src/components/chat-button.tsx : on masque leur
+   bulle via l'API publique et on affiche la nôtre. Ne pas réessayer par CSS. */
+
+/* Focus clavier TOUJOURS visible : anneau épais et contrasté.
+   Remplace les `outline-none` + anneaux à 20 % d'opacité (≈1,25:1). */
+:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Accessibilité : certains utilisateurs souffrent physiquement du mouvement.
+   On neutralise les animations décoratives (8 tournaient en boucle infinie). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

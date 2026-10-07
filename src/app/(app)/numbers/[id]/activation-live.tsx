@@ -171,15 +171,23 @@ export function ActivationLive({
 
       {/* ── Code SMS / attente / issue ───────────────────────────────── */}
       {activation.smsCode ? (
+        /* Le bloc se déplie, un halo vert pulse UNE fois, puis les chiffres
+           se posent l'un après l'autre. C'est l'instant qui décide si le
+           client repart content : il revient de WhatsApp, il a attendu,
+           parfois il a déjà échoué plusieurs fois. Tout est en CSS — aucun
+           octet ajouté, et la carte graphique s'en charge. */
         <div className="animate-[neCodeIn_260ms_ease-out]">
-          <CopyField
-            label="Code de vérification reçu"
-            value={activation.smsCode}
-            tone="success"
-            grouped={false}
-            size="lg"
-            hint="Collez-le dans l'application pour terminer la vérification."
-          />
+          <div className="animate-[neSuccessRing_900ms_ease-out_200ms] rounded-xl">
+            <CopyField
+              label="Code de vérification reçu"
+              value={activation.smsCode}
+              tone="success"
+              grouped={false}
+              size="lg"
+              reveal
+              hint="Collez-le dans l'application pour terminer la vérification."
+            />
+          </div>
         </div>
       ) : !isTerminal ? (
         <div className="space-y-3">
