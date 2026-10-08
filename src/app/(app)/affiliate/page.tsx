@@ -3,7 +3,8 @@ import { requireUser } from "@/lib/auth";
 import { getAffiliateStats } from "@/lib/affiliate";
 import { getSettings } from "@/lib/settings";
 import { env } from "@/lib/env";
-import { Card } from "@/components/ui";
+import { ButtonLink, Card } from "@/components/ui";
+import { IconShare } from "@/components/icons";
 import { CopyButton } from "@/components/copy-button";
 import { formatXof } from "@/lib/pricing";
 
@@ -18,6 +19,7 @@ export default async function AffiliatePage() {
 
   const link = `${env.appUrl}/register?ref=${user.referralCode}`;
   const pct = Math.round(settings.commissionRate * 100);
+  const shareText = `Salut ! Sur num express tu achètes un numéro virtuel et tu reçois ton code SMS (Telegram, Google, Instagram…) en quelques secondes, payé en Mobile Money. Inscris-toi ici : ${link}`;
 
   return (
     <div className="space-y-6">
@@ -29,14 +31,22 @@ export default async function AffiliatePage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* Le gain sort de la grille à trois colonnes : c'est le chiffre qui
+          donne envie de partager, il était noyé au même niveau que le nombre
+          de filleuls et le code. */}
+      <Card className="p-5 text-center">
+        <p className="text-sm text-muted">Commissions gagnées</p>
+        <p className="mt-1 text-4xl font-extrabold tabular-nums text-primary">
+          {formatXof(stats.totalEarned)}
+        </p>
+      </Card>
+
+      <div className="grid gap-4 sm:grid-cols-2">
         <Card className="p-5">
           <p className="text-sm text-muted">Filleuls</p>
-          <p className="mt-1 text-2xl font-bold">{stats.referralsCount}</p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-sm text-muted">Commissions gagnées</p>
-          <p className="mt-1 text-2xl font-bold">{formatXof(stats.totalEarned)}</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums">
+            {stats.referralsCount}
+          </p>
         </Card>
         <Card className="p-5">
           <p className="text-sm text-muted">Votre code</p>
@@ -46,15 +56,36 @@ export default async function AffiliatePage() {
 
       <Card className="space-y-3 p-5">
         <h2 className="font-semibold">Votre lien de parrainage</h2>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <code className="flex-1 truncate rounded-lg border bg-gray-50 px-3 py-2.5 text-sm">
-            {link}
-          </code>
-          <CopyButton value={link} label="Copier le lien" size="md" />
-        </div>
+
+        {/* Partage en un geste : WhatsApp est le canal réel de nos clients,
+            et le message part déjà rédigé. C'était le seul moyen de partager
+            auparavant : copier le lien, ouvrir WhatsApp, coller. */}
+        <ButtonLink
+          href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="accent"
+          size="lg"
+          className="w-full"
+        >
+          <IconShare className="h-5 w-5" />
+          Partager sur WhatsApp
+        </ButtonLink>
+
+        {/* break-all et non truncate : un lien coupé par des points de
+            suspension ne peut être ni lu ni recopié à la main. */}
+        <code className="block break-all rounded-lg border bg-gray-50 px-3 py-2.5 text-sm">
+          {link}
+        </code>
+        <CopyButton
+          value={link}
+          label="Copier le lien"
+          size="md"
+          className="w-full"
+        />
         <p className="text-sm text-muted">
-          Partagez ce lien : toute personne qui s'inscrit via celui-ci devient
-          votre filleul à vie.
+          Toute personne qui s&apos;inscrit via ce lien devient votre filleul à
+          vie.
         </p>
       </Card>
 

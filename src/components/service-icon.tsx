@@ -12,6 +12,7 @@ import {
   siTiktok,
   siWechat,
   siVk,
+  siYoutube,
 } from "simple-icons";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,7 @@ const SI: Record<string, { path: string; hex: string }> = {
   lf: siTiktok,
   wb: siWechat,
   vk: siVk,
+  yt: siYoutube,
 };
 
 // Ceux absents de Simple Icons : repli propre en couleur de marque.

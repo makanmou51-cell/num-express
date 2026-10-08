@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AuthForm } from "../auth-form";
 import { registerAction } from "../actions";
+import { googleEnabled } from "@/lib/auth/google";
 
 export const metadata: Metadata = { title: "Créer un compte — num express" };
 
@@ -19,7 +20,12 @@ export default async function RegisterPage({
           Quelques secondes suffisent pour commencer.
         </p>
       </div>
-      <AuthForm mode="register" action={registerAction} referral={ref} />
+      <AuthForm
+        mode="register"
+        action={registerAction}
+        referral={ref}
+        googleEnabled={googleEnabled()}
+      />
     </>
   );
 }

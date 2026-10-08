@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui";
+import { InstallButton } from "@/components/install-button";
 import { logoutAction } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 
@@ -124,8 +125,11 @@ export function MobileNav({
             })}
           </nav>
 
-          {/* Déconnexion */}
-          <div className="border-t p-3">
+          {/* Installer l'app + Déconnexion */}
+          <div className="space-y-2 border-t p-3">
+            <div className="flex justify-center">
+              <InstallButton />
+            </div>
             <form action={logoutAction}>
               <Button type="submit" variant="outline" className="w-full">
                 Déconnexion

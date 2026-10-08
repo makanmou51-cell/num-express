@@ -4,12 +4,19 @@ import { logoutAction } from "@/app/(auth)/actions";
 import { Logo } from "@/components/logo";
 import { Button, ButtonLink } from "@/components/ui";
 import { MobileNav } from "@/components/mobile-nav";
+import { BottomNav } from "@/components/bottom-nav";
+import { InstallButton } from "@/components/install-button";
 import { formatXof } from "@/lib/pricing";
 
+// Pas d'emoji dans un libellé de navigation : il dépend de la police du
+// téléphone et s'affiche en carré vide sur beaucoup d'Android d'entrée de gamme.
+// « Numéros virtuels » (/numeros) est remplacé par les deux destinations
+// réelles : cette page n'était qu'un menu de deux cartes vers /buy et /numbers.
 const NAV = [
   { href: "/dashboard", label: "Tableau de bord" },
   { href: "/buy", label: "Acheter" },
   { href: "/numbers", label: "Mes numéros" },
+  { href: "/boost", label: "Boost" },
   { href: "/wallet", label: "Solde" },
   { href: "/affiliate", label: "Parrainage" },
 ];
@@ -45,6 +52,7 @@ export default async function AppLayout({
 
           {/* Actions bureau */}
           <div className="hidden items-center gap-2 md:flex">
+            <InstallButton />
             {user.role === "ADMIN" && (
               <ButtonLink href="/admin" variant="ghost" size="sm">
                 Admin
@@ -75,9 +83,13 @@ export default async function AppLayout({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:py-8">
+      {/* pb-24 sur téléphone : sans cette réserve, le bas de chaque page passe
+          sous la barre d'onglets fixe et devient inatteignable. */}
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-6 sm:pt-8 md:pb-8">
         {children}
       </main>
+
+      <BottomNav />
     </div>
   );
 }

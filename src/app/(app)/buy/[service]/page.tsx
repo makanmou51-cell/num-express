@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { isGrizzlyMock } from "@/lib/grizzly/client";
@@ -7,11 +6,14 @@ import {
   serviceLabel,
   type CatalogOffer,
 } from "@/lib/grizzly/catalog";
-import { purchaseAction } from "@/app/(app)/actions";
-import { Alert, ButtonLink, Card } from "@/components/ui";
-import { SubmitButton } from "@/components/submit-button";
+import { Alert, BackLink, BalancePill, Card } from "@/components/ui";
 import { ServiceIcon } from "@/components/service-icon";
 import { formatXof } from "@/lib/pricing";
+import { CountryList } from "./country-list";
+
+// OnlineSim peut être lent : on laisse le temps au catalogue de se construire
+// et à l'achat (getNum + retries) d'aboutir sans couper la fonction.
+export const maxDuration = 60;
 
 type Params = { service: string };
 type Search = { error?: string };
@@ -47,19 +49,22 @@ export default async function BuyServicePage({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <Link href="/buy" className="text-sm text-primary hover:underline">
-            ← Tous les services
-          </Link>
-          <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-bold">
-            <ServiceIcon code={service} className="h-9 w-9 text-sm" />
-            {serviceLabel(service)} — choisissez un pays
-          </h1>
+      <div>
+        <BackLink href="/buy" label="Tous les services" />
+        <div className="mt-2 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            {/* Le titre tenait sur trois lignes sur un écran de 360 px : le nom
+                du service reste seul sur sa ligne, la consigne passe en
+                sous-titre. */}
+            <h1 className="flex items-center gap-2.5 text-2xl font-bold">
+              <ServiceIcon code={service} className="h-9 w-9 shrink-0 text-sm" />
+              <span className="truncate">Numéro {serviceLabel(service)}</span>
+            </h1>
+            <p className="mt-1 text-sm text-muted">Choisissez le pays.</p>
+          </div>
+          {/* Même encadré de solde que sur la page d'achat principale. */}
+          <BalancePill balance={user.balance} />
         </div>
-        <span className="shrink-0 text-sm text-muted">
-          Solde : <strong className="text-foreground">{formatXof(user.balance)}</strong>
-        </span>
       </div>
 
       {isGrizzlyMock && (
@@ -80,57 +85,12 @@ export default async function BuyServicePage({
           Aucun pays disponible pour ce service actuellement.
         </Card>
       ) : (
-        <Card className="divide-y">
-          {offers.map((o) => {
-            const affordable = user.balance >= o.priceXof;
-            return (
-              <div
-                key={o.countryCode}
-                className="flex items-center justify-between gap-4 px-4 py-3"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  {o.iso ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={`https://flagcdn.com/w40/${o.iso}.png`}
-                      alt=""
-                      width={28}
-                      height={21}
-                      loading="lazy"
-                      className="h-5 w-7 shrink-0 rounded-sm object-cover shadow-sm ring-1 ring-black/5"
-                    />
-                  ) : (
-                    <span className="flex h-5 w-7 shrink-0 items-center justify-center rounded-sm bg-gray-100 text-xs">
-                      🌐
-                    </span>
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{o.countryName}</p>
-                    <p className="text-sm text-muted">
-                      {o.count.toLocaleString("fr-FR")} disponibles
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="font-semibold">{formatXof(o.priceXof)}</span>
-                  {affordable ? (
-                    <form action={purchaseAction}>
-                      <input type="hidden" name="service" value={service} />
-                      <input type="hidden" name="country" value={o.countryCode} />
-                      <SubmitButton size="sm" pendingLabel="Achat…">
-                        Acheter
-                      </SubmitButton>
-                    </form>
-                  ) : (
-                    <ButtonLink href="/wallet" size="sm" variant="outline">
-                      Recharger
-                    </ButtonLink>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </Card>
+        <CountryList
+          service={service}
+          serviceName={serviceLabel(service)}
+          offers={offers}
+          userBalance={user.balance}
+        />
       )}
     </div>
   );

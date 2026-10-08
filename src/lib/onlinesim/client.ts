@@ -38,9 +38,14 @@ const ERRORS: Record<string, string> = {
   ERROR_NO_OPERATIONS: "Aucune opération en cours.",
 };
 
-async function call<T>(
+// Erreurs TRANSITOIRES qui méritent un nouvel essai (timeout, réseau, HTTP,
+// serveur surchargé) — surtout PAS les erreurs métier (BAD_KEY, NO_NUMBER…).
+const RETRYABLE_CODES = new Set(["NETWORK", "HTTP", "TRY_AGAIN_LATER"]);
+
+async function callOnce<T>(
   action: string,
-  params: Record<string, string | number | undefined> = {},
+  params: Record<string, string | number | undefined>,
+  timeoutMs: number,
 ): Promise<T> {
   const key = env.onlinesim.apiKey;
   if (!key) {
@@ -57,7 +62,7 @@ async function call<T>(
   }
 
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   let text: string;
   try {
     const res = await fetch(url, {
@@ -99,6 +104,32 @@ async function call<T>(
   return parsed as T;
 }
 
+/**
+ * Appelle l'API OnlineSim avec RETRIES automatiques sur erreurs transitoires.
+ * C'est ce qui évite les « OnlineSim n'a pas répondu à temps » à l'achat :
+ * un pic de lenteur ponctuel est réessayé au lieu de faire échouer l'opération.
+ */
+async function call<T>(
+  action: string,
+  params: Record<string, string | number | undefined> = {},
+  opts: { retries?: number; timeoutMs?: number } = {},
+): Promise<T> {
+  const retries = opts.retries ?? 2;
+  const timeoutMs = opts.timeoutMs ?? TIMEOUT_MS;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await callOnce<T>(action, params, timeoutMs);
+    } catch (e) {
+      lastErr = e;
+      const code = e instanceof OnlineSimError ? e.code : "NETWORK";
+      if (attempt === retries || !RETRYABLE_CODES.has(code)) throw e;
+      await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 /* ─────────────────────────── Types de réponse ─────────────────────────── */
 
 interface TariffCountry {
@@ -115,8 +146,19 @@ interface TariffService {
   slug?: string;
 }
 interface TariffsResponse {
-  countries?: Record<string, TariffCountry>;
-  services?: Record<string, TariffService>;
+  // OnlineSim répartit pays et services entre une liste normale ET une liste
+  // « favoris » (marqués sur le compte). Un groupe vide revient parfois en
+  // TABLEAU `[]` plutôt qu'en objet -> on tolère les deux formes.
+  countries?: Record<string, TariffCountry> | TariffCountry[];
+  services?: Record<string, TariffService> | TariffService[];
+  favorite_countries?: Record<string, TariffCountry> | TariffCountry[];
+  favorite_services?: Record<string, TariffService> | TariffService[];
+}
+
+/** Normalise un groupe OnlineSim (objet OU tableau vide) en objet exploitable. */
+function asRecord<T>(v: Record<string, T> | T[] | undefined): Record<string, T> {
+  if (!v || Array.isArray(v)) return {};
+  return v;
 }
 
 export interface OsCountry {
@@ -148,14 +190,22 @@ export const onlinesim = {
   async getCountries(): Promise<OsCountry[]> {
     const j = await call<TariffsResponse>("getTariffs");
     const out: OsCountry[] = [];
-    for (const c of Object.values(j.countries ?? {})) {
-      if (c?.enable === false) continue;
-      const code = c?.code;
-      if (code === undefined || code === null) continue;
-      out.push({
-        code: String(code),
-        eng: titleCase(c.original ?? c.name ?? String(code)),
-      });
+    const seen = new Set<string>();
+    // FUSION `countries` + `favorite_countries` : sinon les pays favoris du
+    // compte (ex. Espagne) sont absents du catalogue.
+    for (const group of [asRecord(j.countries), asRecord(j.favorite_countries)]) {
+      for (const c of Object.values(group)) {
+        if (c?.enable === false) continue;
+        const code = c?.code;
+        if (code === undefined || code === null) continue;
+        const codeStr = String(code);
+        if (seen.has(codeStr)) continue; // dédoublonnage
+        seen.add(codeStr);
+        out.push({
+          code: codeStr,
+          eng: titleCase(c.original ?? c.name ?? codeStr),
+        });
+      }
     }
     return out;
   },
@@ -168,10 +218,19 @@ export const onlinesim = {
     serviceSlug: string,
     countryCode: string,
   ): Promise<{ cost: number; count: number } | null> {
-    const j = await call<TariffsResponse>("getTariffs", {
-      country: countryCode,
-    });
-    const services = j.services ?? {};
+    // Appel du catalogue (80 pays) : pas de retry (sinon on multiplie la charge)
+    // et timeout court -> un pays lent échoue vite sans bloquer les autres.
+    const j = await call<TariffsResponse>(
+      "getTariffs",
+      { country: countryCode },
+      { retries: 0, timeoutMs: 12_000 },
+    );
+    // FUSION `services` + `favorite_services` : un service favori (ex. WhatsApp)
+    // n'apparaît que dans `favorite_services` et serait sinon introuvable.
+    const services = {
+      ...asRecord(j.services),
+      ...asRecord(j.favorite_services),
+    };
     const entry =
       services[`_${serviceSlug}`] ??
       Object.values(services).find((s) => s?.slug === serviceSlug);
@@ -191,12 +250,17 @@ export const onlinesim = {
     serviceSlug: string,
     countryCode: string,
   ): Promise<{ tzid: string }> {
-    const j = await call<{ tzid?: number | string }>("getNum", {
-      service: serviceSlug,
-      country: countryCode,
-      // Demande le numéro au format international sans préfixe superflu.
-      number: 1,
-    });
+    const j = await call<{ tzid?: number | string }>(
+      "getNum",
+      {
+        service: serviceSlug,
+        country: countryCode,
+        // Demande le numéro au format international sans préfixe superflu.
+        number: 1,
+      },
+      // Achat = opération critique : on retente 2× sur lenteur ponctuelle.
+      { retries: 2, timeoutMs: 12_000 },
+    );
     const tzid = j.tzid;
     if (tzid === undefined || tzid === null || tzid === "") {
       throw new OnlineSimError("NO_TZID", "OnlineSim n'a pas renvoyé d'identifiant d'opération.");
@@ -213,10 +277,13 @@ export const onlinesim = {
     code: string | null;
     raw: string;
   }> {
-    const j = await call<unknown>("getState", {
-      tzid,
-      message_to_code: 1,
-    });
+    // getState est SONDÉ en boucle (achat + page de suivi) : il doit échouer
+    // VITE et sans retry, le sondage relance de toute façon.
+    const j = await call<unknown>(
+      "getState",
+      { tzid, message_to_code: 1 },
+      { retries: 0, timeoutMs: 8_000 },
+    );
     const list = Array.isArray(j) ? j : j ? [j] : [];
     const op = (list as Record<string, unknown>[]).find(
       (o) => String(o?.tzid ?? "") === String(tzid),

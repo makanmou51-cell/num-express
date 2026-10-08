@@ -47,6 +47,14 @@ export const env = {
   // déjà libéré. OnlineSim = 15 min, Grizzly = 20 min.
   activationTtlMin: num("ACTIVATION_TTL_MIN", 0),
 
+  // ── Connexion Google (OAuth 2.0) ──
+  // Active le bouton « Continuer avec Google » quand les deux clés sont
+  // présentes (Google Cloud Console → Identifiants → ID client OAuth « Web »).
+  google: {
+    clientId: str("GOOGLE_CLIENT_ID"),
+    clientSecret: str("GOOGLE_CLIENT_SECRET"),
+  },
+
   // ── Grizzly SMS ──
   grizzly: {
     apiKey: str("GRIZZLY_API_KEY"),
@@ -57,13 +65,25 @@ export const env = {
     mock: bool("GRIZZLY_MOCK", false),
   },
 
-  // Fournisseur de numéros actif : grizzly | onlinesim.
+  // Fournisseur de numéros actif : grizzly | onlinesim | herosms.
   // Bascule à chaud (variable d'env) pour comparer sans réécrire de code.
   smsProvider: str("SMS_PROVIDER", "grizzly").toLowerCase(),
 
   // ── OnlineSim (fournisseur alternatif, en évaluation) ──
   onlinesim: {
     apiKey: str("ONLINESIM_API_KEY"),
+  },
+
+  // ── HeroSMS (protocole sms-activate, identique à Grizzly) ──
+  // Fournisseur premium : numéros non-VoIP frais → délivre bien WhatsApp.
+  // Quand SMS_PROVIDER=herosms, le client Grizzly cible cet endpoint (même
+  // protocole `handler_api.php`) ; seul le catalogue diffère (getPrices, sans
+  // paliers fournisseur).
+  heroSms: {
+    apiKey: str("HEROSMS_API_KEY"),
+    baseUrl: str("HEROSMS_BASE_URL", "https://hero-sms.com/stubs/handler_api.php"),
+    // Devise de facturation du compte HeroSMS (pour la conversion en F CFA).
+    currency: str("HEROSMS_CURRENCY", "USD"),
   },
 
   // ── Tarification : bénéfice fixe par tranche de coût ──
@@ -93,12 +113,34 @@ export const env = {
     // Petite tolérance au-dessus du palier visé (dérive de prix entre
     // l'affichage et l'achat). Le palier fait déjà plafond : 5 % suffit.
     maxPriceBuffer: num("MAX_PRICE_BUFFER", 0.05),
-    // Stock minimum pour qu'un pays soit proposé (fiabilité).
+    // Stock minimum pour qu'un pays soit proposé (fiabilité). Réglé pour
+    // Grizzly, qui annonce d'énormes stocks (getPricesV3).
     minStockCount: num("MIN_STOCK_COUNT", 500),
+    // Seuil DÉDIÉ à OnlineSim : il rapporte de PETITS stocks réels (5-100 par
+    // pays). Le seuil Grizzly (500) cacherait presque tous les pays, dont
+    // l'Espagne. 1 = on propose tout pays qui a au moins un numéro dispo.
+    onlineSimMinStock: num("ONLINESIM_MIN_STOCK", 1),
+    // Seuil DÉDIÉ à HeroSMS (getPrices renvoie un stock réel par pays). Frais
+    // et abondant : 1 = on propose tout pays ayant au moins un numéro dispo.
+    heroSmsMinStock: num("HEROSMS_MIN_STOCK", 1),
+    // Seuil de numéros PHYSIQUES (non-VoIP) à partir duquel un pays est marqué
+    // « Fiable » (le code arrive quasi à coup sûr). En dessous : proposé quand
+    // même mais sans badge. L'API HeroSMS ne permettant pas de forcer le
+    // premium, le stock physique est le SEUL vrai signal de fiabilité.
+    heroSmsReliablePhysical: num("HEROSMS_RELIABLE_PHYSICAL", 500),
+    // Bénéfice fixe (F CFA) par numéro LOUÉ (location), quelle que soit la durée
+    // (1 à 30 jours). Marge dédiée, distincte des activations.
+    heroSmsRentProfitXof: num("HEROSMS_RENT_PROFIT_XOF", 5000),
     // Stock minimum pour qu'un FOURNISSEUR soit ciblable. Bas (20) car sur
     // WhatsApp les fournisseurs FIABLES sont les chers, à petit stock (20-37) —
     // les gros lots bon marché ne délivrent pas. On les rend donc ciblables.
     minProviderStock: num("MIN_PROVIDER_STOCK", 20),
+  },
+
+  // ── Boost réseaux sociaux (panel SMM Peakerr) ──
+  peakerr: {
+    apiKey: str("PEAKERR_API_KEY"),
+    baseUrl: str("PEAKERR_BASE_URL", "https://peakerr.com/api/v2"),
   },
 
   // ── Affiliation ──
@@ -111,6 +153,8 @@ export const env = {
   mail: {
     provider: str("MAIL_PROVIDER", "log"), // log | resend
     from: str("MAIL_FROM", "num express <no-reply@num-express.local>"),
+    // Adresse RÉELLE de réponse/désabonnement (améliore la délivrabilité).
+    replyTo: str("MAIL_REPLY_TO"),
     resendApiKey: str("RESEND_API_KEY"),
   },
 

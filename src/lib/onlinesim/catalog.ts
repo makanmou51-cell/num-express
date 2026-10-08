@@ -7,8 +7,8 @@ import { onlinesim, type OsOffer } from "@/lib/onlinesim/client";
  * interroger chaque pays : on parallélise avec une concurrence bornée et on
  * met le résultat en cache, sinon la page /buy serait inutilisable.
  */
-const CONCURRENCY = 12;
-const TTL_MS = 15 * 60 * 1000; // 15 min
+const CONCURRENCY = 20;
+const TTL_MS = 30 * 60 * 1000; // 30 min
 
 const cache = new Map<string, { at: number; offers: OsOffer[] }>();
 // Évite que 10 visiteurs simultanés déclenchent 10 reconstructions.
@@ -62,8 +62,21 @@ export async function getOnlineSimOffers(
 
   const p = build(serviceSlug)
     .then((offers) => {
-      cache.set(serviceSlug, { at: Date.now(), offers });
-      return offers;
+      // On ne remplace le cache QUE si le build a produit des résultats : un
+      // build partiel raté (OnlineSim lent) ne doit pas écraser un bon cache.
+      if (offers.length > 0) {
+        cache.set(serviceSlug, { at: Date.now(), offers });
+        return offers;
+      }
+      const prev = cache.get(serviceSlug);
+      return prev ? prev.offers : offers;
+    })
+    .catch((e) => {
+      // Build en échec : on sert le DERNIER catalogue connu (même expiré)
+      // plutôt que d'afficher une erreur au client. Sinon on propage.
+      const stale = cache.get(serviceSlug);
+      if (stale) return stale.offers;
+      throw e;
     })
     .finally(() => inflight.delete(serviceSlug));
 

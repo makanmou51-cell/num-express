@@ -77,11 +77,66 @@ export async function startTopup(
  * fonctionne même quand le webhook ne peut pas joindre l'app (localhost).
  * Retourne le nombre de recharges créditées.
  */
+// Fenêtre de rattrapage. Elle porte sur `createdAt`, c'est-à-dire l'instant du
+// CLIC, pas du paiement : en Mobile Money la validation USSD peut arriver bien
+// plus tard. Bornée à 2 h, toute recharge payée après devenait invisible À VIE.
+const RECONCILE_WINDOW_MS = 48 * 60 * 60 * 1000; // 48 h
+// Garde-fous : /wallet attend cette boucle AVANT d'afficher le solde, et chaque
+// appel réseau peut durer. On plafonne pour ne jamais faire tomber la page.
+const RECONCILE_MAX_ITEMS = 8;
+const RECONCILE_DEADLINE_MS = 12_000;
+// Au-delà, une recharge jamais payée est close : sinon elle reste « En attente »
+// à vie dans l'historique du client et le grand-livre ne converge jamais.
+const TOPUP_STALE_MS = 24 * 60 * 60 * 1000; // 24 h
+
+type PendingTopup = {
+  id: string;
+  userId: string;
+  providerRef: string | null;
+  createdAt: Date;
+};
+
+/** Interroge le prestataire pour UNE recharge en attente et applique le verdict. */
+async function settlePendingTopup(
+  provider: PaymentProvider,
+  tx: PendingTopup,
+  opts: { expectedUserId?: string } = {},
+): Promise<"credited" | "failed" | "pending" | "error"> {
+  if (!tx.providerRef || !provider.fetchChargeStatus) return "pending";
+  try {
+    const st = await provider.fetchChargeStatus(tx.providerRef);
+    if (st.approved) {
+      const r = await confirmTopup(tx.providerRef, true, {
+        paidXof: st.amountXof,
+        expectedUserId: opts.expectedUserId,
+      });
+      return r.status === "credited" ? "credited" : "pending";
+    }
+    if (st.failed) {
+      await confirmTopup(tx.providerRef, false, {
+        expectedUserId: opts.expectedUserId,
+      });
+      return "failed";
+    }
+    return "pending";
+  } catch (e) {
+    // Trace explicite : sans elle, une vérification échouée (429/500/timeout)
+    // est indiscernable d'un panier abandonné et personne n'est alerté.
+    console.error(
+      "[topup] vérification échouée",
+      tx.id,
+      tx.providerRef,
+      (e as Error).message,
+    );
+    return "error";
+  }
+}
+
 export async function reconcilePendingTopups(userId: string): Promise<number> {
   const provider = getPaymentProvider();
   if (!provider.fetchChargeStatus) return 0;
 
-  const since = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 h
+  const since = new Date(Date.now() - RECONCILE_WINDOW_MS);
   const pending = await prisma.transaction.findMany({
     where: {
       userId,
@@ -91,27 +146,83 @@ export async function reconcilePendingTopups(userId: string): Promise<number> {
       providerRef: { not: null },
       createdAt: { gte: since },
     },
+    orderBy: { createdAt: "desc" },
+    take: RECONCILE_MAX_ITEMS,
   });
 
+  const deadline = Date.now() + RECONCILE_DEADLINE_MS;
   let credited = 0;
   for (const tx of pending) {
-    if (!tx.providerRef) continue;
-    try {
-      const st = await provider.fetchChargeStatus(tx.providerRef);
-      if (st.approved) {
-        const r = await confirmTopup(tx.providerRef, true, {
-          paidXof: st.amountXof,
-          expectedUserId: userId,
-        });
-        if (r.status === "credited") credited++;
-      } else if (st.failed) {
-        await confirmTopup(tx.providerRef, false, { expectedUserId: userId });
-      }
-    } catch {
-      /* on réessaiera au prochain retour/refresh */
+    // On n'immobilise JAMAIS l'affichage du solde : le cron reprend le reste.
+    if (Date.now() > deadline) break;
+    if ((await settlePendingTopup(provider, tx, { expectedUserId: userId })) === "credited") {
+      credited++;
     }
   }
   return credited;
+}
+
+/**
+ * (Cron) Balaye les recharges en attente de TOUS les utilisateurs : crédite
+ * celles réellement payées, clôt celles jamais payées. C'est le filet de
+ * sécurité quand le webhook s'est perdu ET que le client n'est pas revenu —
+ * sans lui, une recharge payée reste invisible pour toujours.
+ */
+export async function sweepPendingTopups(limit = 150): Promise<{
+  checked: number;
+  credited: number;
+  failed: number;
+  expired: number;
+  errors: number;
+}> {
+  const provider = getPaymentProvider();
+  const out = { checked: 0, credited: 0, failed: 0, expired: 0, errors: 0 };
+  if (!provider.fetchChargeStatus) return out;
+
+  const staleBefore = new Date(Date.now() - TOPUP_STALE_MS);
+
+  const pending = await prisma.transaction.findMany({
+    where: {
+      type: "TOPUP",
+      status: "PENDING",
+      provider: provider.name.toUpperCase(),
+      providerRef: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+
+  for (const tx of pending) {
+    out.checked++;
+    const r = await settlePendingTopup(provider, tx);
+    if (r === "credited") out.credited++;
+    else if (r === "failed") out.failed++;
+    else if (r === "error") out.errors++;
+    else if (tx.createdAt < staleBefore) {
+      // Toujours « pending » chez le prestataire et vieille de +24 h : panier
+      // abandonné -> on la clôt pour que le grand-livre converge.
+      const claim = await prisma.transaction.updateMany({
+        where: { id: tx.id, status: "PENDING" },
+        data: { status: "FAILED" },
+      });
+      if (claim.count > 0) out.expired++;
+    }
+  }
+
+  // Lignes orphelines : `createCharge` a échoué, aucun paiement n'a jamais pu
+  // exister (providerRef absent) -> invérifiables, on les clôt.
+  const orphans = await prisma.transaction.updateMany({
+    where: {
+      type: "TOPUP",
+      status: "PENDING",
+      providerRef: null,
+      createdAt: { lt: staleBefore },
+    },
+    data: { status: "FAILED" },
+  });
+  out.expired += orphans.count;
+
+  return out;
 }
 
 /**
@@ -133,25 +244,41 @@ export async function confirmTopup(
     if (tx.status === "COMPLETED") return { status: "already" as const };
 
     if (!approved) {
-      await db.transaction.update({
-        where: { id: tx.id },
+      const claim = await db.transaction.updateMany({
+        where: { id: tx.id, status: "PENDING" },
         data: { status: "FAILED" },
       });
-      return { status: "failed" as const };
+      return {
+        status: claim.count > 0 ? ("failed" as const) : ("already" as const),
+      };
     }
 
     // On crédite le montant réellement PAYÉ (source autoritative), jamais plus
     // que le montant demandé. Empêche le crédit gonflé via payload falsifié.
     const creditAmount = Math.min(opts.paidXof ?? tx.amount, tx.amount);
     if (creditAmount <= 0) {
-      await db.transaction.update({
-        where: { id: tx.id },
+      await db.transaction.updateMany({
+        where: { id: tx.id, status: "PENDING" },
         data: { status: "FAILED" },
       });
       return { status: "failed" as const };
     }
 
-    // Crédit ATOMIQUE (increment) -> pas de course/lost-update.
+    // REVENDICATION ATOMIQUE (compare-and-swap) — INDISPENSABLE.
+    // `findUnique` + `if (status === COMPLETED)` est un test-puis-agis SANS
+    // verrou : sous READ COMMITTED, deux appels concurrents lisent tous deux
+    // « PENDING » et créditent CHACUN le solde (double crédit). Or le webhook et
+    // le retour du client sur /wallet arrivent SIMULTANÉMENT par conception
+    // (même `return_url`), donc le cas est nominal, pas exotique.
+    // Ici, seul le PREMIER appelant obtient count === 1 et crédite.
+    // On accepte aussi FAILED : une recharge close localement mais réellement
+    // payée ensuite doit rester créditable (sinon = argent client perdu).
+    const claim = await db.transaction.updateMany({
+      where: { id: tx.id, status: { in: ["PENDING", "FAILED"] } },
+      data: { status: "COMPLETED" },
+    });
+    if (claim.count === 0) return { status: "already" as const };
+
     const updated = await db.user.update({
       where: { id: tx.userId },
       data: { balance: { increment: creditAmount } },
@@ -159,11 +286,7 @@ export async function confirmTopup(
     });
     await db.transaction.update({
       where: { id: tx.id },
-      data: {
-        status: "COMPLETED",
-        amount: creditAmount,
-        balanceAfter: updated.balance,
-      },
+      data: { amount: creditAmount, balanceAfter: updated.balance },
     });
     return { status: "credited" as const };
   });

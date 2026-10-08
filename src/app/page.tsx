@@ -4,6 +4,7 @@ import { ButtonLink } from "@/components/ui";
 import { Logo } from "@/components/logo";
 import { ServiceIcon } from "@/components/service-icon";
 import { InstallButton } from "@/components/install-button";
+import { HeroVideo } from "@/components/hero-video";
 import {
   serviceLabel,
   FEATURED_SERVICES,
@@ -177,13 +178,20 @@ export default async function HomePage() {
             >
               <Trust icon="bolt" label="Instantané" />
               <Trust icon="shield" label="100 % sécurisé" />
-              <Trust icon="globe" label="100+ pays" />
+              <Trust icon="globe" label="200 pays" />
               <Trust icon="refund" label="Remboursement auto" />
             </div>
           </div>
 
-          {/* Visuel : téléphone + orbes flottantes + carte boost */}
-          <div className="relative flex justify-center lg:justify-end">
+          {/* Visuel du héros : le FILM de marque sur grand écran et connexion
+              rapide, la maquette animée en CSS partout ailleurs, et un bouton
+              « Voir le film » pour tout le monde. Le film pèse 1,32 Mo contre
+              230 Ko pour la page entière : on ne l'impose pas à un visiteur en
+              3G, d'autant que ce trafic est payant. Règle détaillée dans
+              src/components/hero-video.tsx. */}
+          <HeroVideo
+            maquette={
+              <div className="relative flex justify-center lg:justify-end">
             <Orb
               code="wa"
               wrap="left-1 top-6 sm:-left-2"
@@ -217,8 +225,10 @@ export default async function HomePage() {
               <p className="text-sm font-extrabold text-primary-dark">
                 +2 400 abonnés
               </p>
-            </div>
-          </div>
+                </div>
+              </div>
+            }
+          />
         </section>
       </div>
 
@@ -229,7 +239,7 @@ export default async function HomePage() {
       <section className="border-b border-border/60 bg-white">
         <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
           <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
-            <Stat value="100+" label="Pays disponibles" />
+            <Stat value="200" label="Pays disponibles" />
             <Stat value="2 000+" label="Services couverts" />
             <Stat value="< 1 min" label="Réception du code" />
             <Stat value="24/7" label="Disponible" />

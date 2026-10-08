@@ -6,6 +6,8 @@ export interface MailInput {
   subject: string;
   html: string;
   text: string;
+  replyTo?: string;
+  headers?: Record<string, string>;
 }
 
 async function sendViaResend(m: MailInput): Promise<void> {
@@ -21,6 +23,9 @@ async function sendViaResend(m: MailInput): Promise<void> {
       subject: m.subject,
       html: m.html,
       text: m.text,
+      // Champs facultatifs : omis par JSON.stringify si undefined.
+      reply_to: m.replyTo || undefined,
+      headers: m.headers,
     }),
   });
   if (!res.ok) {
@@ -62,6 +67,37 @@ export function verifyEmailTemplate(link: string) {
       { label: "Confirmer mon e-mail", href: link },
     ),
   };
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[c] ?? c,
+  );
+}
+
+/** Message libre envoyé par l'admin à tous les utilisateurs. */
+export function broadcastTemplate(_title: string, bodyText: string) {
+  const bodyHtml = escapeHtml(bodyText).replace(/\n/g, "<br>");
+  // Volontairement SOBRE : pas de bouton ni d'en-tête « pub ». Un e-mail qui
+  // ressemble à un message personnel a bien plus de chances d'arriver dans
+  // l'onglet « Principale » plutôt que « Promotions ».
+  return `<!doctype html><html lang="fr"><body style="margin:0;padding:16px;background:#ffffff">
+  <div style="max-width:560px;margin:auto;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#1a1a1a;font-size:15px;line-height:1.65">
+    <p style="margin:0">${bodyHtml}</p>
+    <p style="color:#9aa0a6;font-size:12px;margin-top:28px">Vous recevez cet e-mail car vous avez un compte sur num express.${
+      env.mail.replyTo
+        ? " Pour ne plus en recevoir, répondez « STOP »."
+        : ""
+    }</p>
+  </div></body></html>`;
 }
 
 export function resetPasswordTemplate(link: string) {

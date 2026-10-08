@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/expire-activations",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/reconcile-topups",
+      "schedule": "30 3 * * *"
     }
   ]
 }

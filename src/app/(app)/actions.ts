@@ -51,9 +51,18 @@ export async function purchaseAction(formData: FormData): Promise<void> {
     redirect(`/buy?error=${encodeURIComponent("Sélection invalide.")}`);
   }
   const { service, country } = parsed.data;
+  const verifyType =
+    String(formData.get("verify") ?? "SMS").toUpperCase() === "CALL"
+      ? "CALL"
+      : "SMS";
 
   try {
-    const activation = await purchaseNumber(user.id, service, country);
+    const activation = await purchaseNumber(
+      user.id,
+      service,
+      country,
+      verifyType,
+    );
     redirect(`/numbers/${activation.id}`);
   } catch (e) {
     if (isRedirectError(e)) throw e;
