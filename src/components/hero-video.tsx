@@ -3,71 +3,46 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Le film de marque dans le héros : une affiche fixe, un bouton de lecture.
+ * Le film de marque complet, ouvert a la demande.
  *
- * ── Pourquoi pas une lecture automatique ────────────────────────────────
- * La première version lisait le film en boucle, mais seulement sur grand
- * écran et connexion 4G. Trois problèmes constatés :
+ * Il ne joue PAS dans le heros : le plan de fond s en charge (hero-fond.tsx).
+ * Ici on ne charge rien tant que le visiteur n a pas clique — `preload="none"`
+ * sur une balise montee seulement a l ouverture. Les 1,32 Mo du film ne
+ * partent donc jamais tout seuls, ce qui compte sur une audience en 3G et un
+ * trafic achete en publicite.
  *
- *   1. Le film ouvre sur quatre secondes de fond noir. Dans le héros, ça
- *      donnait un grand rectangle noir — la première chose que voyait un
- *      visiteur. Une affiche ne se laisse pas au hasard du montage.
- *   2. Les clients sur téléphone ne voyaient jamais le film. Or ils sont la
- *      majorité, et c'est précisément le trafic qu'on achète en publicité.
- *   3. Deviner la qualité de la connexion pour décider à la place du
- *      visiteur marchait mal et coûtait soixante lignes.
- *
- * Une affiche de 26 Ko s'affiche instantanément, partout, en 3G comme en
- * fibre, sur téléphone comme sur ordinateur. Celui qui veut le film clique :
- * `preload="none"` garantit qu'aucun octet ne part avant ce clic.
+ * La fenetre fournit le son, les commandes et les sous-titres francais : le
+ * film reste comprehensible sans le son, ce qui est le cas le plus frequent.
  */
 
 const FILM = "/film/num-express.mp4";
 const AFFICHE = "/film/affiche.jpg";
 const SOUS_TITRES = "/film/num-express.vtt";
 
-export function HeroVideo() {
+/** Lien discret qui ouvre le film complet, avec le son et les sous-titres. */
+export function LienFilm() {
   const [ouvert, setOuvert] = useState(false);
-
   return (
-    <div className="relative">
+    <>
       <button
         type="button"
         onClick={() => setOuvert(true)}
-        aria-label="Lire le film de présentation, 30 secondes"
-        className="group relative block w-full overflow-hidden border border-white/15 bg-black transition-colors hover:border-white/40"
+        className="group inline-flex min-h-11 items-center gap-3 text-[15px] font-semibold text-white/70 transition-colors duration-200 hover:text-white"
       >
-        {/* L'affiche porte son rapport 16:9 : la place est réservée avant le
-            chargement, donc la page ne saute pas sous le doigt du visiteur. */}
-        <img
-          src={AFFICHE}
-          alt="Un téléphone affichant le code de vérification reçu sur num express"
-          width={1280}
-          height={720}
-          className="block aspect-video w-full object-cover"
-          loading="eager"
-          decoding="async"
-        />
-        <span
-          aria-hidden="true"
-          className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/5"
-        >
-          <span className="flex h-16 w-16 items-center justify-center bg-white transition-transform duration-200 group-hover:scale-105">
-            <svg viewBox="0 0 24 24" className="ml-1 h-6 w-6 fill-black">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          </span>
+        <span className="flex h-9 w-9 items-center justify-center border border-white/30 transition-colors duration-200 group-hover:border-white group-hover:bg-white">
+          <svg
+            viewBox="0 0 24 24"
+            className="ml-0.5 h-3.5 w-3.5 fill-current transition-colors group-hover:fill-[#06241A]"
+            aria-hidden="true"
+          >
+            <path d="M8 5v14l11-7z" />
+          </svg>
         </span>
-        <span
-          aria-hidden="true"
-          className="absolute bottom-0 left-0 bg-black px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white"
-        >
-          Le film · 30 s
-        </span>
+        Voir le film
+        <span className="font-normal text-white/40">30 s</span>
       </button>
-
       {ouvert && <PleinEcran onFermer={() => setOuvert(false)} />}
-    </div>
+    </>
   );
 }
 

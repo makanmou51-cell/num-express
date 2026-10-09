@@ -273,6 +273,13 @@ body {
     transform: none !important;
   }
 
+  /* Le plan de fond anime du heros : une video qui tourne en boucle est
+     exactement ce que « moins de mouvement » demande d'eviter. On la retire,
+     l'aplat de fond reste seul et le texte ne change pas d'un pixel. */
+  .ne-fond-anime {
+    display: none !important;
+  }
+
   /* Le reflet n'a aucun contenu : on le retire au lieu de le figer en travers
      de l'écran. */
   .ne-sheen {

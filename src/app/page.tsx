@@ -4,7 +4,8 @@ import { ButtonLink } from "@/components/ui";
 import { Logo } from "@/components/logo";
 import { ServiceIcon } from "@/components/service-icon";
 import { InstallButton } from "@/components/install-button";
-import { HeroVideo } from "@/components/hero-video";
+import { HeroFond } from "@/components/hero-fond";
+import { LienFilm } from "@/components/hero-video";
 import {
   serviceLabel,
   FEATURED_SERVICES,
@@ -27,6 +28,13 @@ export default async function HomePage() {
             prefers-reduced-motion — elle n'est plus injectée ici en <style>.) */}
         <div className="pointer-events-none absolute inset-0 -z-10">
           <div className="absolute inset-0 bg-[#06241A]" />
+          {/* Le plan de fond anime : 58 Ko, sans texte, sujet decale a droite. */}
+          <HeroFond />
+          {/* Voile de lisibilite. Sur telephone l image est recadree et le
+              telephone remonte vers le centre : un voile plat garantit le
+              contraste. Sur grand ecran, un degrade lateral laisse le sujet
+              respirer a droite tout en protegeant le texte a gauche. */}
+          <div className="absolute inset-0 bg-[#06241A]/75 sm:bg-gradient-to-r sm:from-[#06241A] sm:via-[#06241A]/85 sm:to-[#06241A]/25" />
           <div className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] [background-size:96px_96px]" />
         </div>
 
@@ -105,8 +113,8 @@ export default async function HomePage() {
             marque que ce qui est vivant ou réussi. L'orange, lui, ne sert
             qu'à l'action principale. Deux couleurs, deux rôles, zéro
             décoration. */}
-        <section className="mx-auto w-full max-w-6xl px-5 pb-20 pt-6 sm:px-8 sm:pt-10 lg:grid lg:grid-cols-12 lg:items-start lg:gap-12 lg:pb-28 lg:pt-14">
-          <div className="lg:col-span-7">
+        <section className="mx-auto w-full max-w-6xl px-5 pb-20 pt-10 sm:px-8 sm:pt-16 lg:pb-32 lg:pt-24">
+          <div className="max-w-2xl">
             {/* Le titre part du PROBLÈME du client, pas du nom du produit.
                 Personne ne cherche « un numéro virtuel » ; tout le monde a
                 déjà hésité à donner son vrai numéro. */}
@@ -154,18 +162,14 @@ export default async function HomePage() {
               <Repere valeur="< 1 min" libelle="réception du code" />
               <Repere valeur="100 %" libelle="remboursé si échec" />
             </dl>
+
+            {/* Le film complet reste accessible, mais il ne dispute plus la
+                vedette a l action principale. */}
+            <div className="mt-10">
+              <LienFilm />
+            </div>
           </div>
 
-          {/* Colonne visuelle : 5 colonnes sur 12. Volontairement plus
-              étroite que le texte — c'est l'argument qui doit dominer, pas
-              l'illustration. */}
-          <div className="mt-14 lg:col-span-5 lg:mt-1">
-            <HeroVideo />
-            <p className="mt-4 text-[13px] leading-relaxed text-white/45">
-              Trente secondes pour voir comment un code arrive, et combien ça
-              coûte.
-            </p>
-          </div>
         </section>
       </div>
 
