@@ -107,32 +107,23 @@ export default async function HomePage() {
             décoration. */}
         <section className="mx-auto w-full max-w-6xl px-5 pb-20 pt-6 sm:px-8 sm:pt-10 lg:grid lg:grid-cols-12 lg:items-start lg:gap-12 lg:pb-28 lg:pt-14">
           <div className="lg:col-span-7">
-            {/* Surtitre : un filet et des petites capitales. Une pastille
-                arrondie translucide aurait dit « modèle de page ». */}
-            <div className="flex items-center gap-3">
-              <span aria-hidden="true" className="h-px w-10 bg-accent" />
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">
-                Bénin · Togo · payé en Mobile Money
-              </p>
-            </div>
-
             {/* Le titre part du PROBLÈME du client, pas du nom du produit.
                 Personne ne cherche « un numéro virtuel » ; tout le monde a
                 déjà hésité à donner son vrai numéro. */}
-            <h1 className="mt-7 text-[clamp(2.4rem,8.5vw,4.75rem)] font-bold leading-[0.97] tracking-[-0.035em] text-white">
+            <h1 className="text-[clamp(2.4rem,8.5vw,4.75rem)] font-bold leading-[0.97] tracking-[-0.035em] text-white">
               Recevez le code.
               <br />
-              Sans donner votre
+              <span className="text-white/45">Faites décoller</span>
               <br />
-              <span className="text-white/45">vrai numéro.</span>
+              <span className="text-white/45">vos réseaux.</span>
             </h1>
 
             <p className="mt-7 max-w-lg text-[17px] leading-[1.65] text-white/65">
               Un numéro jetable pour WhatsApp, Telegram, Instagram et{" "}
-              <strong className="font-semibold text-white">
-                2 000 autres services
-              </strong>
-              , dans 200 pays. Et de quoi faire décoller vos réseaux.
+              <strong className="font-semibold text-white">2 000 services</strong>,
+              dans 200 pays — sans jamais donner le vôtre. Et des abonnés, des
+              vues et des likes pour TikTok, Instagram et Facebook. Payé en{" "}
+              <strong className="font-semibold text-white">Mobile Money</strong>.
             </p>
 
             {/* Une seule action dominante. Le rectangle plein à angles vifs
