@@ -37,7 +37,21 @@ async function handle(req: Request) {
   }
 
   const debut = Date.now();
-  const result = await expireStaleActivations();
+
+  /* Ce premier appel n'etait PAS protege, contrairement aux deux suivants.
+     S'il echouait — API HeroSMS indisponible, coupure reseau — toute la
+     fonction s'arretait sur une 500, et le balayage Boost comme la reprise
+     de la diffusion e-mail ne tournaient pas du tout. Silencieusement, et
+     tous les jours tant que la panne durait. Les trois taches sont
+     independantes : l'echec de l'une ne doit pas emporter les autres. */
+  let result: Awaited<ReturnType<typeof expireStaleActivations>> | null = null;
+  let erreurActivations: string | null = null;
+  try {
+    result = await expireStaleActivations();
+  } catch (e) {
+    erreurActivations = (e as Error).message;
+    console.error("[cron] expiration des activations echouee :", erreurActivations);
+  }
 
   /* Commandes Boost : meme probleme que les activations. Leur statut n'etait
      mis a jour qu'au retour du client sur /boost ; une commande annulee par
@@ -71,7 +85,13 @@ async function handle(req: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true, ...result, boosts, diffusion });
+  return NextResponse.json({
+    ok: true,
+    ...(result ?? {}),
+    erreurActivations,
+    boosts,
+    diffusion,
+  });
 }
 
 export const GET = handle;

@@ -196,6 +196,13 @@ export async function purchaseNumber(
               verification: mode,
             });
             modeObtenu = mode;
+            /* On enregistre l'operateur REELLEMENT retenu. Sans cette ligne,
+               `operateurObtenu` restait indefini et la colonne `operator`
+               etait nulle sur 100 % des ventes — la selection d'operateurs
+               mesures tournait donc en aveugle : aucun moyen de savoir quel
+               reseau avait servi, ni lequel marche. « any » distingue le
+               repli sans operateur d'une absence d'enregistrement. */
+            operateurObtenu = operator ?? "any";
             break;
           } catch (err) {
             lastErr = err;

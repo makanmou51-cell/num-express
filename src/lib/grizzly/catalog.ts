@@ -8,6 +8,7 @@ import {
 import { computePublicPriceXof } from "@/lib/pricing";
 import { getSettings, type AppSettings } from "@/lib/settings";
 import { mesuresParPays } from "@/lib/grizzly/deliverability";
+import { mesuresMaison, MIN_VENTES } from "@/lib/grizzly/mesures-maison";
 import { isoFromName } from "@/lib/grizzly/flags";
 import { env } from "@/lib/env";
 import { ONLINESIM_SERVICE_SLUG } from "@/lib/onlinesim/client";
@@ -308,7 +309,7 @@ function heroPriceXof(
  * pays/service — la fiabilité vient des numéros physiques non-VoIP.
  */
 async function heroSmsCatalog(serviceCode: string): Promise<CatalogOffer[]> {
-  const [prices, countries, settings, mesures] = await Promise.all([
+  const [prices, countries, settings, mesures, maison] = await Promise.all([
     grizzly.getPrices({ service: serviceCode }),
     getCountriesCached(),
     getSettings(),
@@ -316,6 +317,7 @@ async function heroSmsCatalog(serviceCode: string): Promise<CatalogOffer[]> {
        tolérant à la panne : si la statistique manque, on retombe sur le
        stock physique, exactement comme avant. */
     mesuresParPays(serviceCode),
+    mesuresMaison(serviceCode),
   ]);
 
   const RELIABLE = env.pricing.heroSmsReliablePhysical;
@@ -333,7 +335,17 @@ async function heroSmsCatalog(serviceCode: string): Promise<CatalogOffer[]> {
     // du taux de réussite mesuré, plus du stock. Prix basé sur le coût RÉEL.
     if (heroAvailable(entry) < env.pricing.heroSmsMinStock) continue;
     const physical = heroPhysical(entry);
-    const taux = mesures.get(countryCode)?.successRate;
+    /* NOS ventes priment sur les statistiques du fournisseur des qu'on a
+       assez de volume. HeroSMS publie un agregat mondial, tous revendeurs
+       confondus ; nous avons 1 176 ventes WhatsApp a nous. Elles disent que
+       le Portugal delivre a 29,5 % et le Royaume-Uni a 4,2 % — et que les
+       clients achetaient surtout le second. En dessous de MIN_VENTES, notre
+       chiffre n'est pas significatif et on retombe sur le fournisseur. */
+    const chezNous = maison.get(countryCode);
+    const taux =
+      chezNous && chezNous.ventes >= MIN_VENTES
+        ? chezNous.taux
+        : mesures.get(countryCode)?.successRate;
     out.push({
       countryCode,
       countryName: countryLabel(countries[countryCode], countryCode),

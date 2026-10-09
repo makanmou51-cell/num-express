@@ -17,6 +17,19 @@ export class BoostError extends Error {
 
 const TERMINAL = ["COMPLETED", "PARTIAL", "CANCELED", "FAILED", "REFUNDED"];
 
+/* Au-dela de ce delai SANS LA MOINDRE LIVRAISON, on considere la commande
+   morte et on rembourse le client.
+   Pourquoi c'est necessaire : Peakerr ne passe pas une commande bloquee en
+   « annulee ». Elle reste « en cours » indefiniment. Or `refreshBoostOrder`
+   ne rembourse que sur CANCELED ou FAILED — une commande qui ne demarre
+   jamais n'etait donc JAMAIS remboursee, et l'argent du client restait chez
+   nous sans contrepartie. Constate en production : une commande de 500 F a
+   zero abonne livre depuis huit jours.
+   Peakerr n'expose pas d'annulation : on assume de rembourser sans pouvoir
+   recuperer. Apres cinq jours a zero livraison, le risque qu'elle parte
+   quand meme est negligeable devant un client qui a paye pour rien. */
+const BLOCAGE_JOURS = 5;
+
 /** Passe une commande de boost : valide, débite le solde, envoie à Peakerr. */
 export async function placeBoostOrder(
   userId: string,
@@ -246,7 +259,7 @@ export function listBoostOrders(userId: string, take = 30) {
  */
 export async function sweepPendingBoosts(
   opts: { limit?: number; deadlineMs?: number } = {},
-): Promise<{ checked: number; refunded: number }> {
+): Promise<{ checked: number; refunded: number; bloquees: number }> {
   const pending = await prisma.boostOrder.findMany({
     where: { status: { notIn: TERMINAL }, providerOrderId: { not: null } },
     select: { id: true, userId: true },
@@ -258,6 +271,7 @@ export async function sweepPendingBoosts(
   const deadline = opts.deadlineMs ?? 20_000;
   let checked = 0;
   let refunded = 0;
+  let bloquees = 0;
 
   for (const p of pending) {
     if (Date.now() - debut > deadline) break;
@@ -268,7 +282,28 @@ export async function sweepPendingBoosts(
       });
       const apres = await refreshBoostOrder(p.userId, p.id);
       checked++;
-      if (apres?.refunded && !avant?.refunded) refunded++;
+      if (apres?.refunded && !avant?.refunded) {
+        refunded++;
+        continue;
+      }
+
+      /* Commande enlisee : rien livre depuis trop longtemps. `remains` est le
+         nombre d'unites restant a livrer ; s'il vaut encore la quantite
+         commandee, Peakerr n'a strictement rien fait. `refundBoost` porte sa
+         propre revendication atomique, donc un double passage ne peut pas
+         crediter deux fois. */
+      if (apres && !apres.refunded && !TERMINAL.includes(apres.status)) {
+        const jours = (Date.now() - apres.createdAt.getTime()) / 86_400_000;
+        const rienLivre = (apres.remains ?? apres.quantity) >= apres.quantity;
+        if (jours >= BLOCAGE_JOURS && rienLivre) {
+          await refundBoost(apres);
+          bloquees++;
+          console.warn(
+            `[boost] commande enlisee remboursee : ${apres.id} ` +
+              `(${jours.toFixed(1)} j, 0 livre sur ${apres.quantity})`,
+          );
+        }
+      }
     } catch (e) {
       // Une commande qui échoue ne doit pas arrêter le balayage.
       console.error(
@@ -278,5 +313,5 @@ export async function sweepPendingBoosts(
       );
     }
   }
-  return { checked, refunded };
+  return { checked, refunded, bloquees };
 }
