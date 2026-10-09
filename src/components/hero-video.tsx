@@ -3,106 +3,70 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Le film de marque dans le héros, sans le faire payer aux clients en 3G.
+ * Le film de marque dans le héros : une affiche fixe, un bouton de lecture.
  *
- * ── Le poids, mesuré et non supposé ─────────────────────────────────────
- * La page d'accueil pèse 230 Ko compressés. Le film encodé pour le web en
- * pèse 1,32 Mo (1280 x 720, 243 kb/s) : il est fait d'aplats et de texte,
- * donc il se compresse très bien. C'est six fois la page, pas soixante comme
- * je l'avais d'abord estimé — mais ça reste de loin l'élément le plus lourd,
- * sur une audience béninoise souvent en 3G et un trafic désormais PAYANT.
- * Un visiteur qui attend est un visiteur perdu, et ce clic a été acheté.
+ * ── Pourquoi pas une lecture automatique ────────────────────────────────
+ * La première version lisait le film en boucle, mais seulement sur grand
+ * écran et connexion 4G. Trois problèmes constatés :
  *
- * ── La règle appliquée ──────────────────────────────────────────────────
- * Le film ne se télécharge JAMAIS tout seul sur une connexion lente ou un
- * petit écran. Par défaut, le héros affiche la maquette de téléphone animée
- * en CSS : elle ne coûte pas un octet de réseau et elle raconte déjà la même
- * chose. Le film ne la remplace que si les trois conditions sont réunies :
+ *   1. Le film ouvre sur quatre secondes de fond noir. Dans le héros, ça
+ *      donnait un grand rectangle noir — la première chose que voyait un
+ *      visiteur. Une affiche ne se laisse pas au hasard du montage.
+ *   2. Les clients sur téléphone ne voyaient jamais le film. Or ils sont la
+ *      majorité, et c'est précisément le trafic qu'on achète en publicité.
+ *   3. Deviner la qualité de la connexion pour décider à la place du
+ *      visiteur marchait mal et coûtait soixante lignes.
  *
- *   1. écran large (≥ 1024 px) — en 16:9 dans une colonne étroite le film
- *      devient minuscule, alors que la maquette occupe bien la hauteur ;
- *   2. connexion déclarée rapide, et mode économie de données désactivé ;
- *   3. l'utilisateur ne demande pas moins d'animations.
- *
- * Et dans tous les cas, un bouton « Voir le film » reste disponible : le
- * visiteur qui le VEUT peut le charger, c'est son choix et son forfait.
- * `preload="none"` garantit que rien ne part avant ce clic.
- *
- * Les sous-titres sont fournis (`<track>`) : le film se comprend sans le son,
- * ce qui est le cas le plus fréquent.
+ * Une affiche de 26 Ko s'affiche instantanément, partout, en 3G comme en
+ * fibre, sur téléphone comme sur ordinateur. Celui qui veut le film clique :
+ * `preload="none"` garantit qu'aucun octet ne part avant ce clic.
  */
 
 const FILM = "/film/num-express.mp4";
 const AFFICHE = "/film/affiche.jpg";
 const SOUS_TITRES = "/film/num-express.vtt";
 
-type Connexion = { effectiveType?: string; saveData?: boolean };
-
-/** Vrai si on peut charger 1,3 Mo sans punir le visiteur. */
-function connexionConfortable(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const c = (navigator as Navigator & { connection?: Connexion }).connection;
-  // Pas d'information : on reste prudent et on ne charge pas tout seul.
-  if (!c) return false;
-  if (c.saveData) return false;
-  return c.effectiveType === "4g";
-}
-
-export function HeroVideo({ maquette }: { maquette: React.ReactNode }) {
-  const [auto, setAuto] = useState(false);
-  const [plein, setPlein] = useState(false);
-
-  useEffect(() => {
-    const large = window.matchMedia("(min-width: 1024px)").matches;
-    const sobre = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (large && !sobre && connexionConfortable()) setAuto(true);
-  }, []);
+export function HeroVideo() {
+  const [ouvert, setOuvert] = useState(false);
 
   return (
-    /* Un seul noeud : ce composant est enfant direct d une grille a deux
-       colonnes. Un fragment y placerait le bouton dans une cellule a part. */
-    <div className="w-full">
-      <div className="relative flex w-full justify-center lg:justify-end">
-        {auto ? <Lecteur /> : maquette}
-      </div>
-
-      {/* Toujours proposé, y compris en 3G : le visiteur décide. */}
+    <div className="relative">
       <button
         type="button"
-        onClick={() => setPlein(true)}
-        className="mx-auto mt-6 inline-flex min-h-11 items-center gap-2 rounded-full border border-white/25 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur transition-colors hover:bg-white/20 lg:mx-0"
+        onClick={() => setOuvert(true)}
+        aria-label="Lire le film de présentation, 30 secondes"
+        className="group relative block w-full overflow-hidden border border-white/15 bg-black transition-colors hover:border-white/40"
       >
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-          <path d="M8 5v14l11-7z" />
-        </svg>
-        Voir le film
-        <span className="font-normal text-white/60">30 s</span>
+        {/* L'affiche porte son rapport 16:9 : la place est réservée avant le
+            chargement, donc la page ne saute pas sous le doigt du visiteur. */}
+        <img
+          src={AFFICHE}
+          alt="Un téléphone affichant le code de vérification reçu sur num express"
+          width={1280}
+          height={720}
+          className="block aspect-video w-full object-cover"
+          loading="eager"
+          decoding="async"
+        />
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/5"
+        >
+          <span className="flex h-16 w-16 items-center justify-center bg-white transition-transform duration-200 group-hover:scale-105">
+            <svg viewBox="0 0 24 24" className="ml-1 h-6 w-6 fill-black">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </span>
+        </span>
+        <span
+          aria-hidden="true"
+          className="absolute bottom-0 left-0 bg-black px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white"
+        >
+          Le film · 30 s
+        </span>
       </button>
 
-      {plein && <PleinEcran onFermer={() => setPlein(false)} />}
-    </div>
-  );
-}
-
-/** Le film en boucle muette, dans le cadre du héros. */
-function Lecteur() {
-  return (
-    <div className="relative w-full max-w-[520px]">
-      <div className="absolute -inset-5 -z-10 rounded-[2.5rem] bg-primary/25 blur-2xl" />
-      <video
-        className="w-full rounded-3xl border border-white/15 shadow-2xl"
-        poster={AFFICHE}
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        /* 1,32 Mo : l'en-tête du fichier est placé au début (faststart),
-           la lecture démarre donc avant la fin du téléchargement. */
-        aria-label="Film de présentation de num express"
-      >
-        <source src={FILM} type="video/mp4" />
-      </video>
+      {ouvert && <PleinEcran onFermer={() => setOuvert(false)} />}
     </div>
   );
 }
@@ -131,15 +95,12 @@ function PleinEcran({ onFermer }: { onFermer: () => void }) {
       role="dialog"
       aria-modal="true"
       aria-label="Film de présentation"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4"
       onClick={onFermer}
     >
-      <div
-        className="w-full max-w-5xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
         <video
-          className="w-full rounded-2xl shadow-2xl"
+          className="w-full"
           poster={AFFICHE}
           controls
           autoPlay
@@ -160,7 +121,7 @@ function PleinEcran({ onFermer }: { onFermer: () => void }) {
           ref={fermeture}
           type="button"
           onClick={onFermer}
-          className="mx-auto mt-4 block min-h-11 rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-gray-900"
+          className="mx-auto mt-5 block min-h-11 bg-white px-7 py-2.5 text-sm font-semibold uppercase tracking-wider text-black"
         >
           Fermer
         </button>

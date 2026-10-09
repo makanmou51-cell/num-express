@@ -26,10 +26,8 @@ export default async function HomePage() {
             (la keyframe neFloat vit désormais dans globals.css, avec la garde
             prefers-reduced-motion — elle n'est plus injectée ici en <style>.) */}
         <div className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary-dark via-[#0d5a37] to-[#072b18]" />
-          <div className="absolute -top-40 right-[-10%] h-[36rem] w-[36rem] rounded-full bg-emerald-500/25 blur-[130px]" />
-          <div className="absolute bottom-[-20%] left-[10%] h-80 w-80 rounded-full bg-emerald-400/15 blur-[110px]" />
-          <div className="absolute inset-0 opacity-[0.12] [background-image:radial-gradient(#fff_1px,transparent_1px)] [background-size:34px_34px]" />
+          <div className="absolute inset-0 bg-[#06241A]" />
+          <div className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] [background-size:96px_96px]" />
         </div>
 
         {/* Nav */}
@@ -67,7 +65,7 @@ export default async function HomePage() {
                 href="/dashboard"
                 size="sm"
                 variant="outline"
-                className="border-transparent bg-white text-primary-dark hover:bg-white/90"
+                className="rounded-none border-transparent bg-white text-[#06241A] hover:bg-white/90"
               >
                 Mon espace
               </ButtonLink>
@@ -83,7 +81,7 @@ export default async function HomePage() {
                   href="/register"
                   size="sm"
                   variant="outline"
-                  className="border-transparent bg-white text-primary-dark hover:bg-white/90"
+                  className="rounded-none border-transparent bg-white text-[#06241A] hover:bg-white/90"
                 >
                   Créer un compte
                 </ButtonLink>
@@ -92,143 +90,91 @@ export default async function HomePage() {
           </nav>
         </header>
 
-        {/* Héros */}
-        <section className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pb-24 pt-10 sm:pt-16 lg:grid-cols-2">
-          {/* Texte */}
-          <div className="text-center lg:text-left">
-            <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-start">
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-sm font-medium text-white backdrop-blur">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-                Activation en quelques secondes
-              </span>
-              <a
-                href="#boost"
-                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-400/15 px-3 py-1 text-sm font-medium text-emerald-200 backdrop-blur transition-colors hover:bg-emerald-400/25"
-              >
-                Nouveau : Boost réseaux
-              </a>
+        {/* ── HÉROS ─────────────────────────────────────────────────────────
+            Direction : Swiss Modernism 2.0 + typographie d'affiche
+            (ui-ux-pro-max, styles #50 et #78).
+
+            Ce qui a été RETIRÉ compte autant que ce qui reste. Le dégradé sur
+            le titre, les pastilles translucides, le centrage général et le
+            vert répandu partout sont les quatre marqueurs d'une page générée
+            à la chaîne. À la place : une grille asymétrique 7/5 — jamais la
+            moitié-moitié —, un seul poids typographique, des angles vifs, et
+            la couleur réservée à ce sur quoi on peut cliquer.
+
+            Le vert reste la marque, mais il ne sert plus de décor : il ne
+            marque que ce qui est vivant ou réussi. L'orange, lui, ne sert
+            qu'à l'action principale. Deux couleurs, deux rôles, zéro
+            décoration. */}
+        <section className="mx-auto w-full max-w-6xl px-5 pb-20 pt-6 sm:px-8 sm:pt-10 lg:grid lg:grid-cols-12 lg:items-start lg:gap-12 lg:pb-28 lg:pt-14">
+          <div className="lg:col-span-7">
+            {/* Surtitre : un filet et des petites capitales. Une pastille
+                arrondie translucide aurait dit « modèle de page ». */}
+            <div className="flex items-center gap-3">
+              <span aria-hidden="true" className="h-px w-10 bg-accent" />
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">
+                Bénin · Togo · payé en Mobile Money
+              </p>
             </div>
-            <h1 className="mt-5 text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
-              Numéros virtuels
-              <br className="hidden sm:block" />{" "}
-              <span className="bg-gradient-to-r from-emerald-300 to-emerald-500 bg-clip-text text-transparent">
-                &amp; Boost réseaux
-              </span>
+
+            {/* Le titre part du PROBLÈME du client, pas du nom du produit.
+                Personne ne cherche « un numéro virtuel » ; tout le monde a
+                déjà hésité à donner son vrai numéro. */}
+            <h1 className="mt-7 text-[clamp(2.4rem,8.5vw,4.75rem)] font-bold leading-[0.97] tracking-[-0.035em] text-white">
+              Recevez le code.
+              <br />
+              Sans donner votre
+              <br />
+              <span className="text-white/45">vrai numéro.</span>
             </h1>
-            {/* Cascade d'entrée. Le <h1> ci-dessus en est EXCLU à dessein :
-                c'est le plus gros élément de l'écran, donc celui que Google
-                chronomètre (LCP). Le faire démarrer invisible retarderait
-                l'affichage perçu de 400 ms, sur une audience déjà en 3G.
-                Le titre s'affiche tout de suite ; seul ce qui vient après lui
-                se met en mouvement, ce qui guide l'œil vers le bouton.
-                "backwards" : l'élément reste invisible pendant son délai,
-                sinon il clignote avant de partir. */}
-            <p
-              className="mx-auto mt-5 max-w-xl text-lg text-white/70 lg:mx-0"
-              style={{ animation: "neRise 500ms ease-out 80ms backwards" }}
-            >
-              Recevez vos codes SMS (Telegram, Google, Instagram…){" "}
-              <strong className="text-white">et</strong> boostez TikTok,
-              Instagram &amp; Facebook — followers, likes, vues. Payé en{" "}
-              <strong className="text-white">Mobile Money</strong>.
+
+            <p className="mt-7 max-w-lg text-[17px] leading-[1.65] text-white/65">
+              Un numéro jetable pour WhatsApp, Telegram, Instagram et{" "}
+              <strong className="font-semibold text-white">
+                2 000 autres services
+              </strong>
+              , dans 200 pays. Et de quoi faire décoller vos réseaux.
             </p>
 
-            {/* UNE SEULE action dominante (orange accent). Le boost devient un
-                lien secondaire : deux boutons de même poids = aucun ne ressort. */}
-            <div
-              className="mt-8 flex flex-col items-center gap-4 sm:flex-row lg:justify-start"
-              style={{ animation: "neRise 500ms ease-out 220ms backwards" }}
-            >
-              {/* Un battement UNIQUE, une seconde après l'arrivée : le temps
-                  que l'œil ait fini de lire le titre et la phrase. Pas de
-                  boucle — un bouton principal qui clignote sans fin se lit
-                  comme une publicité et finit par être ignoré. */}
-              <ButtonLink
+            {/* Une seule action dominante. Le rectangle plein à angles vifs
+                se lit comme un bouton physique ; le lien souligné à côté ne
+                lui dispute pas l'attention. */}
+            <div className="mt-10 flex flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:gap-7">
+              <Link
                 href={cta}
-                size="lg"
-                variant="accent"
-                className="w-full shadow-xl shadow-black/20 sm:w-auto"
-                style={{ animation: "nePulseCta 700ms ease-in-out 1200ms" }}
+                className="inline-flex min-h-[52px] items-center justify-center bg-accent px-8 text-[15px] font-semibold uppercase tracking-[0.08em] text-white transition-colors duration-200 hover:bg-[#9a330a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
               >
                 Acheter un numéro
-              </ButtonLink>
+              </Link>
               <Link
                 href={boostCta}
-                className="inline-flex min-h-11 items-center gap-1.5 text-base font-semibold text-white underline decoration-white/40 underline-offset-4 transition-opacity hover:opacity-80"
+                className="inline-flex min-h-[52px] items-center justify-center border-b-2 border-white/30 text-[15px] font-semibold text-white transition-colors duration-200 hover:border-white sm:justify-start sm:border-b sm:pb-1"
               >
                 Booster mes réseaux
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
               </Link>
             </div>
 
-            <div
-              className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-white/60 lg:justify-start"
-              style={{ animation: "neRise 500ms ease-out 340ms backwards" }}
-            >
-              <Trust icon="bolt" label="Instantané" />
-              <Trust icon="shield" label="100 % sécurisé" />
-              <Trust icon="globe" label="200 pays" />
-              <Trust icon="refund" label="Remboursement auto" />
-            </div>
+            {/* Repères chiffrés : du texte brut dans une grille réglée. Pas
+                d'icônes dans des ronds — c'est le réflexe décoratif qui fait
+                « gabarit ». Les chiffres sont vrais : 205 pays et 2 370
+                services relevés sur l'API, arrondis vers le bas. */}
+            <dl className="mt-14 grid grid-cols-2 border-t border-white/[0.14] sm:grid-cols-4">
+              <Repere valeur="200" libelle="pays couverts" />
+              <Repere valeur="2 000" libelle="services" />
+              <Repere valeur="< 1 min" libelle="réception du code" />
+              <Repere valeur="100 %" libelle="remboursé si échec" />
+            </dl>
           </div>
 
-          {/* Visuel du héros : le FILM de marque sur grand écran et connexion
-              rapide, la maquette animée en CSS partout ailleurs, et un bouton
-              « Voir le film » pour tout le monde. Le film pèse 1,32 Mo contre
-              230 Ko pour la page entière : on ne l'impose pas à un visiteur en
-              3G, d'autant que ce trafic est payant. Règle détaillée dans
-              src/components/hero-video.tsx. */}
-          <HeroVideo
-            maquette={
-              <div className="relative flex justify-center lg:justify-end">
-            <Orb
-              code="wa"
-              wrap="left-1 top-6 sm:-left-2"
-              glow="bg-emerald-400/50"
-              delay="0s"
-            />
-            <Orb
-              code="tg"
-              wrap="-left-1 bottom-24"
-              glow="bg-sky-400/50"
-              delay="1.1s"
-            />
-            <Orb
-              code="ig"
-              wrap="right-3 -top-3 sm:right-6"
-              glow="bg-pink-400/50"
-              delay="0.6s"
-            />
-            <PhoneMockup />
-            {/* Carte « boost » flottante */}
-            <div
-              className="absolute -bottom-3 left-0 z-20 rounded-2xl border border-black/5 bg-white px-3.5 py-2.5 shadow-2xl"
-              style={{
-                animation: "neFloat 5.5s ease-in-out infinite",
-                animationDelay: "0.9s",
-              }}
-            >
-              <p className="text-[11px] font-medium text-gray-500">
-                TikTok · Boost
-              </p>
-              <p className="text-sm font-extrabold text-primary-dark">
-                +2 400 abonnés
-              </p>
-                </div>
-              </div>
-            }
-          />
+          {/* Colonne visuelle : 5 colonnes sur 12. Volontairement plus
+              étroite que le texte — c'est l'argument qui doit dominer, pas
+              l'illustration. */}
+          <div className="mt-14 lg:col-span-5 lg:mt-1">
+            <HeroVideo />
+            <p className="mt-4 text-[13px] leading-relaxed text-white/45">
+              Trente secondes pour voir comment un code arrive, et combien ça
+              coûte.
+            </p>
+          </div>
         </section>
       </div>
 
@@ -348,7 +294,7 @@ export default async function HomePage() {
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
               Comment ça marche
             </h2>
-            <p className="mt-3 text-muted">Trois étapes, moins d'une minute.</p>
+            <p className="mt-3 text-muted">Trois étapes, moins d&apos;une minute.</p>
           </div>
           <div className="mt-12 grid gap-6 sm:grid-cols-3">
             <Step
@@ -387,8 +333,8 @@ export default async function HomePage() {
               Un prix clair, selon la destination
             </h2>
             <p className="mt-3 text-muted">
-              Le tarif exact s'affiche{" "}
-              <strong className="text-foreground">avant</strong> l'achat. Aucun
+              Le tarif exact s&apos;affiche{" "}
+              <strong className="text-foreground">avant</strong> l&apos;achat. Aucun
               frais caché.
             </p>
           </div>
@@ -417,7 +363,7 @@ export default async function HomePage() {
 
           <p className="mx-auto mt-6 max-w-3xl text-center text-xs text-muted">
             Prix indicatifs « à partir de ». Le tarif exact de chaque numéro
-            s'affiche au moment de choisir.
+            s&apos;affiche au moment de choisir.
           </p>
 
           <div className="mx-auto mt-8 flex max-w-3xl items-start gap-3 rounded-2xl border bg-card p-4">
@@ -445,7 +391,7 @@ export default async function HomePage() {
               Pourquoi choisir num express ?
             </h2>
             <p className="mt-3 text-muted">
-              Rapide, fiable et pensé pour l'Afrique.
+              Rapide, fiable et pensé pour l&apos;Afrique.
             </p>
             <div className="mt-8 space-y-6">
               <WhyItem
@@ -536,7 +482,7 @@ export default async function HomePage() {
         <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-20">
           <div className="mx-auto max-w-2xl text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-              Conçu au Bénin, pour l'Afrique
+              Conçu au Bénin, pour l&apos;Afrique
             </span>
             <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
               Ils reçoivent leurs codes avec num express
@@ -615,7 +561,7 @@ export default async function HomePage() {
             Prêt à recevoir votre code ?
           </h2>
           <p className="relative mx-auto mt-3 max-w-lg text-primary-foreground/90">
-            Créez votre compte et achetez votre premier numéro en moins d'une
+            Créez votre compte et achetez votre premier numéro en moins d&apos;une
             minute.
           </p>
           <div className="relative mt-8 flex justify-center">
@@ -680,9 +626,9 @@ export default async function HomePage() {
 
             {/* Aide & légal */}
             <FooterCol title="Aide & légal">
-              <FooterLink href="#faq">Centre d'aide</FooterLink>
+              <FooterLink href="#faq">Centre d&apos;aide</FooterLink>
               <FooterLink href="#faq">Nous contacter (chat)</FooterLink>
-              <FooterLink href="/terms">Conditions d'utilisation</FooterLink>
+              <FooterLink href="/terms">Conditions d&apos;utilisation</FooterLink>
             </FooterCol>
           </div>
 
@@ -702,14 +648,18 @@ export default async function HomePage() {
   );
 }
 
-/* ───────────────────────── Sous-composants ───────────────────────── */
 
-function Trust({ icon, label }: { icon: IconName; label: string }) {
+/* Un repere chiffre du heros : le chiffre domine, le libelle explique.
+   Encadre par des filets plutot que pose dans une carte — une carte par
+   chiffre aurait ramene l'empilement de boites qu'on cherche a eviter. */
+function Repere({ valeur, libelle }: { valeur: string; libelle: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <Icon name={icon} className="h-4 w-4 text-primary" />
-      {label}
-    </span>
+    <div className="border-b border-white/[0.14] py-5 pr-5 sm:border-r sm:last:border-r-0">
+      <dt className="text-2xl font-bold tracking-tight text-white tabular-nums">
+        {valeur}
+      </dt>
+      <dd className="mt-1 text-[13px] leading-snug text-white/50">{libelle}</dd>
+    </div>
   );
 }
 
@@ -1008,203 +958,9 @@ function FooterLink({
   );
 }
 
-/* Icône de service flottante et lumineuse (effet « waouh » du héros). */
-function Orb({
-  code,
-  wrap,
-  glow,
-  delay,
-}: {
-  code: string;
-  wrap: string;
-  glow: string;
-  delay: string;
-}) {
-  return (
-    <div
-      className={`absolute z-10 ${wrap}`}
-      style={{
-        animation: "neFloat 6s ease-in-out infinite",
-        animationDelay: delay,
-      }}
-    >
-      <div className={`absolute inset-0 rounded-full blur-xl ${glow}`} />
-      {/* Conteneur rond qui rogne le carré de ServiceIcon en cercle. */}
-      <div className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-white shadow-2xl ring-1 ring-black/5">
-        <ServiceIcon code={code} className="h-full w-full border-0" />
-      </div>
-    </div>
-  );
-}
 
-/* Maquette de téléphone (visuel héros, 100% CSS/SVG, sans image externe).
- *
- * ── Pourquoi elle bouge ────────────────────────────────────────────────────
- * Cet écran était figé : trois messages posés là, immobiles. C'était pourtant
- * la seule chose du héros qui pouvait DÉMONTRER la promesse au lieu de
- * l'écrire. « Recevez vos codes en quelques secondes » affiché à côté d'une
- * capture morte, c'est une affirmation ; un code qui tombe sous les yeux du
- * visiteur, c'est une preuve.
- *
- * Les trois messages arrivent donc l'un après l'autre, en boucle de 9 s, du
- * plus ancien (en bas) au plus récent (en haut) — l'ordre d'une vraie liste de
- * notifications. Le code vert s'illumine pile à l'atterrissage de sa carte.
- *
- * ── Ce que ça coûte ────────────────────────────────────────────────────────
- * Zéro JavaScript, zéro image, zéro octet de réseau en plus : tout passe par
- * animation-delay, et les propriétés animées sont opacity et transform, que la
- * carte graphique traite sans réveiller le fil principal. Les trois messages
- * gardent leur place dans la mise en page même invisibles, donc aucun décalage
- * visuel au chargement (CLS). On vise des téléphones d'entrée de gamme en 3G :
- * ce visuel ne doit rien leur prendre.
- *
- * Le détail qui compte pour l'accessibilité est dans globals.css : la règle
- * prefers-reduced-motion globale raccourcit les animations à 0,01 ms et les
- * joue une seule fois, ce qui laisserait ces messages sur leur dernière image
- * — opacity: 0, un téléphone vide. La classe .ne-msg existe pour couper
- * l'animation et rétablir l'état visible dans ce cas.
- */
 
-/* Rythme de la boucle. Un seul endroit à toucher pour régler la cadence. */
-const CYCLE = "9s";
-const BOUCLE_MSG = "neMsgLoop " + CYCLE + " ease-out infinite backwards";
-/* Du plus ancien au plus récent : Instagram, puis Telegram, puis le code. */
-const ARRIVEE_INSTAGRAM = "0.2s";
-const ARRIVEE_TELEGRAM = "1.3s";
-const ARRIVEE_CODE = "2.4s";
 
-function PhoneMockup() {
-  return (
-    <div className="relative w-[260px] sm:w-[300px]">
-      <div className="absolute -inset-6 -z-10 rounded-[3rem] bg-primary/15 blur-2xl" />
-      <div className="relative rounded-[2.6rem] border-[10px] border-gray-900 bg-gray-900 shadow-2xl">
-        <div className="absolute left-1/2 top-0 z-10 h-6 w-32 -translate-x-1/2 rounded-b-2xl bg-gray-900" />
-        <div className="relative overflow-hidden rounded-[1.9rem] bg-gray-50">
-          {/* Reflet qui balaie l'écran, sur un rythme volontairement différent
-              de celui des messages : deux cadences non synchrones se lisent
-              comme plus organiques qu'un seul battement. */}
-          <div
-            aria-hidden="true"
-            className="ne-sheen pointer-events-none absolute inset-y-0 -left-1/3 z-20 w-1/3 bg-gradient-to-r from-transparent via-white/40 to-transparent"
-            style={{ animation: "neSheen 8s ease-in-out infinite" }}
-          />
-          {/* barre d'état */}
-          <div className="flex items-center justify-between px-6 pb-2 pt-3 text-[11px] font-semibold text-gray-500">
-            <span>9:41</span>
-            <span className="flex items-center gap-1" aria-hidden="true">
-              <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor">
-                <path d="M2 20h3v-5H2zm5 0h3V10H7zm5 0h3V5h-3zm5 0h3V2h-3z" />
-              </svg>
-              <svg
-                viewBox="0 0 24 24"
-                className="h-3 w-3"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <rect x="2" y="8" width="17" height="8" rx="2" />
-                <path d="M21 11v2" />
-              </svg>
-            </span>
-          </div>
-          {/* numéro */}
-          <div className="px-4 pb-3">
-            <p className="text-[11px] text-gray-400">Votre numéro</p>
-            <div className="mt-1 flex items-center justify-between">
-              <span className="font-mono text-sm font-bold text-gray-800">
-                +1 202 345 3494
-              </span>
-              <span className="flex items-center gap-1.5 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
-                {/* La pastille respire : un numéro en ligne, pas une
-                    étiquette imprimée. */}
-                <span
-                  aria-hidden="true"
-                  className="h-1.5 w-1.5 rounded-full bg-green-600"
-                  style={{ animation: "neLiveDot 1.8s ease-in-out infinite" }}
-                />
-                Actif
-              </span>
-            </div>
-          </div>
-          {/* messages */}
-          <div className="space-y-2.5 bg-white px-3 pb-8 pt-3">
-            <div
-              className="ne-msg rounded-2xl border border-primary/20 bg-primary/5 p-3"
-              style={{ animation: BOUCLE_MSG, animationDelay: ARRIVEE_CODE }}
-            >
-              <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
-                  T
-                </span>
-                <span className="text-xs font-semibold text-gray-700">
-                  Telegram
-                </span>
-                <span className="ml-auto text-[10px] text-gray-400">
-                  à l&apos;instant
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-gray-600">
-                Votre code est{" "}
-                <span
-                  className="inline-block rounded-md px-1 font-mono text-base font-bold tracking-widest text-primary"
-                  style={{
-                    /* Même période et même retard que la carte qui le porte :
-                       le flash tombe donc exactement sur son atterrissage,
-                       sans aucune synchronisation côté JavaScript. */
-                    animation: "neCodeGlow " + CYCLE + " ease-out infinite",
-                    animationDelay: ARRIVEE_CODE,
-                  }}
-                >
-                  336-291
-                </span>
-              </p>
-            </div>
-
-            <MsgRow
-              letter="T"
-              name="Telegram"
-              text="Login code : 55193"
-              delay={ARRIVEE_TELEGRAM}
-            />
-            <MsgRow
-              letter="ig"
-              name="Instagram"
-              text="827 401 — code"
-              delay={ARRIVEE_INSTAGRAM}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MsgRow({
-  letter,
-  name,
-  text,
-  delay,
-}: {
-  letter: string;
-  name: string;
-  text: string;
-  delay: string;
-}) {
-  return (
-    <div
-      className="ne-msg flex items-center gap-2 rounded-2xl bg-gray-50 p-2.5"
-      style={{ animation: BOUCLE_MSG, animationDelay: delay }}
-    >
-      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-200 text-[10px] font-bold text-gray-600">
-        {letter}
-      </span>
-      <div className="min-w-0">
-        <p className="text-xs font-semibold text-gray-700">{name}</p>
-        <p className="truncate text-[11px] text-gray-500">{text}</p>
-      </div>
-    </div>
-  );
-}
 
 /* ───────────── Icônes (SVG inline) ───────────── */
 type IconName = "bolt" | "shield" | "globe" | "refund" | "wallet" | "chat";
