@@ -8,7 +8,7 @@ import {
 import { computePublicPriceXof } from "@/lib/pricing";
 import { getSettings, type AppSettings } from "@/lib/settings";
 import { mesuresParPays } from "@/lib/grizzly/deliverability";
-import { mesuresMaison, MIN_VENTES } from "@/lib/grizzly/mesures-maison";
+import { mesuresMaison, paysMorts, MIN_VENTES } from "@/lib/grizzly/mesures-maison";
 import { isoFromName } from "@/lib/grizzly/flags";
 import { env } from "@/lib/env";
 import { ONLINESIM_SERVICE_SLUG } from "@/lib/onlinesim/client";
@@ -309,7 +309,7 @@ function heroPriceXof(
  * pays/service — la fiabilité vient des numéros physiques non-VoIP.
  */
 async function heroSmsCatalog(serviceCode: string): Promise<CatalogOffer[]> {
-  const [prices, countries, settings, mesures, maison] = await Promise.all([
+  const [prices, countries, settings, mesures, maison, morts] = await Promise.all([
     grizzly.getPrices({ service: serviceCode }),
     getCountriesCached(),
     getSettings(),
@@ -318,6 +318,7 @@ async function heroSmsCatalog(serviceCode: string): Promise<CatalogOffer[]> {
        stock physique, exactement comme avant. */
     mesuresParPays(serviceCode),
     mesuresMaison(serviceCode),
+    paysMorts(serviceCode),
   ]);
 
   const RELIABLE = env.pricing.heroSmsReliablePhysical;
@@ -334,6 +335,10 @@ async function heroSmsCatalog(serviceCode: string): Promise<CatalogOffer[]> {
     // On garde tout pays disponible ; l'ORDRE et le badge viennent désormais
     // du taux de réussite mesuré, plus du stock. Prix basé sur le coût RÉEL.
     if (heroAvailable(entry) < env.pricing.heroSmsMinStock) continue;
+    /* Pays qui ne delivre PLUS rien : on ne le vend pas. Le classer dernier
+       ne suffit pas — 49 clients ont achete l Italie ce mois-ci pour zero
+       code. Il revient de lui-meme des qu il redelivre. */
+    if (morts.has(countryCode)) continue;
     const physical = heroPhysical(entry);
     /* NOS ventes priment sur les statistiques du fournisseur des qu'on a
        assez de volume. HeroSMS publie un agregat mondial, tous revendeurs

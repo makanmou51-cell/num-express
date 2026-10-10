@@ -29,6 +29,20 @@ const CORRECTIONS: Record<string, string> = {
   "gmail.fr": "gmail.com",
   "gmaul.com": "gmail.com",
   "gmall.com": "gmail.com",
+  // Variantes relevees en production depuis la premiere version :
+  // un client s est inscrit le 10 octobre avec « gmail.cmm ».
+  "gmail.cmm": "gmail.com",
+  "gmail.comm": "gmail.com",
+  "gmail.ccom": "gmail.com",
+  "gmail.om": "gmail.com",
+  "gmail.vom": "gmail.com",
+  "gmail.xom": "gmail.com",
+  "gmaik.com": "gmail.com",
+  "gmail.net": "gmail.com",
+  "yahoo.cm": "yahoo.com",
+  "hotmail.cm": "hotmail.com",
+  "outlook.cm": "outlook.com",
+  "outlook.con": "outlook.com",
   // yahoo
   "yaho.com": "yahoo.com",
   "yahooo.com": "yahoo.com",

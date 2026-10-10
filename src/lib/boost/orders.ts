@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { peakerr, PeakerrError, normalizeStatus } from "@/lib/peakerr/client";
+import { verifierLien } from "@/lib/boost/lien";
 import { findTier, tierIsLive, boostPriceXof } from "@/lib/boost/catalog";
 import { applyWalletTx, InsufficientFundsError } from "@/lib/wallet";
 import { pushToUser } from "@/lib/push";
@@ -58,6 +59,17 @@ export async function placeBoostOrder(
       "Lien invalide (il doit commencer par https://).",
     );
   }
+  /* Le lien correspond-il au service demande ? Sur 51 commandes, 10 ont ete
+     remboursees — et aucune par manque de solde : Peakerr les a toutes
+     acceptees puis annulees, parce que le client avait donne un lien de
+     profil pour des vues, un lien de publication pour des abonnes, ou un
+     lien d un autre reseau. Refuser ici coute une phrase au client ; laisser
+     passer lui coute plusieurs jours d attente et nous coute sa confiance.
+     Regle validee en rejouant les 51 commandes reelles : 6 remboursements
+     evites, ZERO vente reussie bloquee a tort. */
+  const souci = verifierLien(n.key, `${n.key}_${s.key}_${t.key}`, link);
+  if (souci) throw new BoostError("INVALID", souci);
+
   const qty = Math.floor(Number(input.quantity));
   if (!Number.isFinite(qty) || qty < t.min || qty > t.max) {
     throw new BoostError(

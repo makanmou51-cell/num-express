@@ -90,6 +90,50 @@ const lire = unstable_cache(
   { revalidate: 21_600, tags: ["mesures-maison"] },
 );
 
+/* ── Les pays MORTS ────────────────────────────────────────────────────
+   Classer un mauvais pays en bas de liste ne suffit pas quand il ne delivre
+   plus RIEN. Mesure du 10 octobre : l Italie, 49 ventes WhatsApp en 30 jours,
+   ZERO code recu, 140 $ engages chez HeroSMS. Le client est rembourse, mais
+   HeroSMS ne nous rembourse que partiellement : chaque vente nous coute de
+   l argent ET la confiance du client.
+   On utilise une fenetre COURTE : un pays peut mourir du jour au lendemain si
+   le fournisseur change de pool, et la moyenne sur 120 jours masquerait la
+   rupture. Il suffit que le pays redelivre pour qu il revienne tout seul. */
+const FENETRE_MORT_JOURS = 30;
+const MIN_VENTES_MORT = 40;
+
+async function calculerPaysMorts(serviceCode: string): Promise<string[]> {
+  const depuis = new Date(Date.now() - FENETRE_MORT_JOURS * 86_400_000);
+  const base = { serviceCode, createdAt: { gte: depuis } };
+  const [total, recus] = await Promise.all([
+    prisma.activation.groupBy({ by: ["countryCode"], where: base, _count: { _all: true } }),
+    prisma.activation.groupBy({
+      by: ["countryCode"],
+      where: { ...base, smsCode: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
+  const recusPar = new Map(recus.map((r) => [r.countryCode, r._count._all]));
+  return total
+    .filter((t) => t._count._all >= MIN_VENTES_MORT && (recusPar.get(t.countryCode) ?? 0) === 0)
+    .map((t) => t.countryCode);
+}
+
+const lireMorts = unstable_cache(calculerPaysMorts, ["pays-morts"], {
+  revalidate: 21_600,
+  tags: ["mesures-maison"],
+});
+
+/** Pays a ne PLUS vendre pour ce service : aucun code livre sur 40 ventes. */
+export async function paysMorts(serviceCode: string): Promise<Set<string>> {
+  try {
+    return new Set(await lireMorts(serviceCode));
+  } catch {
+    /* Base indisponible : on ne retire rien plutot que de vider le catalogue. */
+    return new Set();
+  }
+}
+
 /** Taux mesurés chez nous, par code pays HeroSMS. */
 export async function mesuresMaison(
   serviceCode: string,
