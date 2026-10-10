@@ -21,6 +21,11 @@ model User {
   role            String    @default("USER") // USER | ADMIN
   balance         Int       @default(0) //  solde en F CFA (XOF), entier
   emailVerifiedAt DateTime? // null = e-mail non vérifié
+  // D ou vient ce client : utm_source de la publicite, ou domaine du site
+  // referent. Renseigne une seule fois, a l inscription. Sans ce champ on ne
+  // peut PAS savoir si une campagne a servi a quelque chose — c est ce qui a
+  // manque pour juger la campagne Facebook des 7-9 octobre.
+  source          String?
   tokenVersion    Int       @default(0) // incrémenté au reset -> invalide les sessions
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

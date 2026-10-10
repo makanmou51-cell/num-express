@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Suspense } from "react";
 import { Clarity } from "@/components/clarity";
 import { MetaPixel } from "@/components/meta-pixel";
+import { SuiviSource } from "@/components/suivi-source";
 import { MetaPageViews } from "@/components/meta-track";
 import "./globals.css";
 import { InstallPrompt } from "@/components/install-prompt";
@@ -66,6 +67,7 @@ export default function RootLayout({
             alors jamais dans la page. Seul le suivi de navigation, qui lit
             l'URL, est isole. */}
         <MetaPixel />
+        <SuiviSource />
         <Suspense fallback={null}>
           <MetaPageViews />
         </Suspense>

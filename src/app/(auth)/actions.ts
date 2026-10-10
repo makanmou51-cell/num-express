@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { hashPassword, verifyPassword, DUMMY_HASH } from "@/lib/auth/password";
 import { createSession, destroySession } from "@/lib/auth/session";
@@ -68,6 +69,18 @@ export async function registerAction(
   const referredById = await resolveReferrerId(ref);
   const referralCode = await generateUniqueReferralCode();
 
+  /* Provenance relevee a la premiere page vue (voir suivi-source.tsx).
+     Une etiquette courte : « facebook », « tiktok », un domaine. Jamais une
+     URL complete, qui pourrait contenir un identifiant de session. */
+  let provenance: string | null = null;
+  try {
+    const brut = (await cookies()).get("ne_src")?.value;
+    if (brut) provenance = decodeURIComponent(brut).slice(0, 40);
+  } catch {
+    /* Cookie illisible : on inscrit quand meme. Mesurer ne doit jamais
+       empecher de vendre. */
+  }
+
   const user = await prisma.user.create({
     data: {
       email,
@@ -78,6 +91,9 @@ export async function registerAction(
       // Le rôle n'est JAMAIS dérivé de l'e-mail à l'inscription (anti-takeover).
       // La promotion admin ne se fait qu'à la connexion, après vérification e-mail.
       role: "USER",
+      /* D'ou vient ce client. Pose par SuiviSource a la premiere page vue ;
+         absent si les cookies sont bloques, ce qui reste sans consequence. */
+      source: provenance,
     },
     select: { id: true, email: true },
   });

@@ -300,3 +300,48 @@ export async function sendUserEmail(
   });
   return user.email;
 }
+
+/**
+ * D'où viennent les inscrits, sur une fenêtre glissante.
+ *
+ * Pourquoi cette fonction existe : la campagne Facebook des 7-9 octobre a
+ * livré 373 vues de page de destination pour 5,25 $, et les inscriptions sont
+ * restées sous la moyenne. Impossible de le prouver à l'époque — rien
+ * n'enregistrait la provenance. On ne pouvait que comparer des moyennes.
+ * Désormais la question se répond, elle ne s'interprète plus.
+ *
+ * `source` est nul pour tous les comptes antérieurs au 10 octobre : c'est
+ * normal, et c'est affiché comme « avant la mesure » plutôt que caché.
+ */
+export async function getSources(jours = 30): Promise<
+  Array<{ source: string; inscrits: number; clients: number; encaisse: number }>
+> {
+  const depuis = new Date(Date.now() - jours * 86_400_000);
+  const users = await prisma.user.findMany({
+    where: { createdAt: { gte: depuis } },
+    select: {
+      source: true,
+      transactions: {
+        where: { type: "TOPUP", status: "COMPLETED" },
+        select: { amount: true },
+      },
+    },
+  });
+
+  const parSource = new Map<string, { inscrits: number; clients: number; encaisse: number }>();
+  for (const u of users) {
+    const k = u.source ?? "avant la mesure";
+    const e = parSource.get(k) ?? { inscrits: 0, clients: 0, encaisse: 0 };
+    e.inscrits++;
+    const paye = u.transactions.reduce((s, t) => s + t.amount, 0);
+    if (paye > 0) {
+      e.clients++;
+      e.encaisse += paye;
+    }
+    parSource.set(k, e);
+  }
+
+  return [...parSource.entries()]
+    .map(([source, e]) => ({ source, ...e }))
+    .sort((a, b) => b.inscrits - a.inscrits);
+}

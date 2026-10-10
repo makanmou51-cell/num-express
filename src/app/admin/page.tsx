@@ -5,6 +5,7 @@ import {
   getSalesData,
   listRecentTopups,
   listRecentPurchases,
+  getSources,
 } from "@/lib/admin";
 import { getProfit } from "@/lib/profit";
 import { Card } from "@/components/ui";
@@ -15,23 +16,24 @@ import { SalesChart } from "./sales-chart";
 export const metadata: Metadata = { title: "Admin — Vue d'ensemble" };
 
 export default async function AdminHome() {
-  const [s, benefice, sales, topups, purchases] = await Promise.all([
+  const [s, benefice, sales, topups, purchases, sources] = await Promise.all([
     getAdminStats(),
     getProfit(),
     getSalesData(),
     listRecentTopups(15),
     listRecentPurchases(15),
+    getSources(30),
   ]);
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Vue d'ensemble</h1>
+      <h1 className="text-2xl font-bold">Vue d&apos;ensemble</h1>
 
       {/* Chiffre d'affaires réel (recharges) — la vraie mesure */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-dark to-[#0d5a37] p-6 text-white shadow-lg">
           <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-400/20 blur-2xl" />
-          <p className="text-sm text-white/70">Chiffre d'affaires réel</p>
+          <p className="text-sm text-white/70">Chiffre d&apos;affaires réel</p>
           <p className="mt-1 text-4xl font-extrabold tracking-tight">
             {formatXof(s.topups)}
           </p>
@@ -96,6 +98,43 @@ export default async function AdminHome() {
           }))}
         />
       </div>
+
+      {/* PROVENANCE DES INSCRITS. Sans ce tableau, juger une campagne
+          revient a comparer des moyennes et a esperer que rien d'autre n'ait
+          bouge en meme temps. La colonne qui decide n'est pas « inscrits »
+          mais « encaisse » : une publicite qui amene cent curieux et zero
+          franc n'a rien rapporte. */}
+      <Card className="p-5">
+        <h2 className="font-semibold">D&apos;où viennent les inscrits — 30 jours</h2>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[26rem] text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+                <th className="pb-2 font-medium">Provenance</th>
+                <th className="pb-2 text-right font-medium">Inscrits</th>
+                <th className="pb-2 text-right font-medium">Ont payé</th>
+                <th className="pb-2 text-right font-medium">Encaissé</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {sources.map((p) => (
+                <tr key={p.source}>
+                  <td className="py-2.5 font-medium">{p.source}</td>
+                  <td className="py-2.5 text-right tabular-nums">{p.inscrits}</td>
+                  <td className="py-2.5 text-right tabular-nums">{p.clients}</td>
+                  <td className="py-2.5 text-right font-semibold tabular-nums">
+                    {formatXof(p.encaisse)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs text-muted">
+          La provenance est relevée depuis le 10 octobre 2026. Les comptes
+          antérieurs apparaissent sous &laquo;&nbsp;avant la mesure&nbsp;&raquo;.
+        </p>
+      </Card>
 
       {/* Graphique des ventes dans le temps */}
       <Card className="p-5 sm:p-6">
