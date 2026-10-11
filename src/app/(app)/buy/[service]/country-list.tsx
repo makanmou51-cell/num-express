@@ -179,32 +179,9 @@ export function CountryList({
                       </span>
                     )}
                   </p>
-                  {/* CE QUE LE CLIENT DOIT VOIR POUR BIEN CHOISIR.
-                      Cette ligne affichait le STOCK — « 509 141 numéros ».
-                      Or le stock ne predit RIEN : les Pays-Bas avaient
-                      693 000 numeros pour 3 % de reussite, le Portugal six
-                      fois moins de stock pour 30 %. Le client choisissait sur
-                      le seul chiffre qui ne l aide pas.
-                      On affiche desormais la proportion de clients qui ont
-                      REELLEMENT recu leur code, mesuree sur nos ventes. Le
-                      stock ne reste visible que lorsqu on n a pas de mesure. */}
-                  {typeof o.successRate === "number" ? (
-                    <p
-                      className={`text-xs font-medium ${
-                        o.successRate >= 20
-                          ? "text-success"
-                          : o.successRate >= 8
-                            ? "text-warning"
-                            : "text-destructive"
-                      }`}
-                    >
-                      {Math.round(o.successRate)} % reçoivent leur code
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted">
-                      {o.count.toLocaleString("fr-FR")} numéros
-                    </p>
-                  )}
+                  <p className="text-xs text-muted">
+                    {o.count.toLocaleString("fr-FR")} numéros
+                  </p>
                 </div>
                 <span className="shrink-0 font-bold tabular-nums">
                   {formatXof(o.priceXof)}

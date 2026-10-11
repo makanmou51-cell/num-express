@@ -535,9 +535,7 @@ export function BuyWizard({
                           )}
                         </span>
                         <span className="block text-xs text-muted">
-                          {typeof c.successRate === "number"
-                            ? `${Math.round(c.successRate)} % reçoivent leur code`
-                            : `${c.count.toLocaleString("fr-FR")} numéros disponibles`}
+                          {c.count.toLocaleString("fr-FR")} numéros disponibles
                         </span>
                       </span>
                       <span className="shrink-0 text-sm font-bold tabular-nums">
