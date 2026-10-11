@@ -472,8 +472,11 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ───────────── Témoignages ───────────── */}
-      <section className="border-y border-border/60 bg-white">
+      {/* ───────────── Témoignages ─────────────
+          L'ancre « avis » sert a pointer directement ici depuis l'exterieur :
+          les programmes partenaires reclament souvent un lien vers des avis
+          clients, et une page d'accueil entiere ne repond pas a la question. */}
+      <section id="avis" className="border-y border-border/60 bg-white">
         <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-20">
           <div className="mx-auto max-w-2xl text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
