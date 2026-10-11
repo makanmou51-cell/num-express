@@ -8,7 +8,6 @@ import {
 } from "@/lib/grizzly/catalog";
 import { Alert, BackLink, BalancePill, Card } from "@/components/ui";
 import { ServiceIcon } from "@/components/service-icon";
-import { formatXof } from "@/lib/pricing";
 import { CountryList } from "./country-list";
 
 // OnlineSim peut être lent : on laisse le temps au catalogue de se construire
@@ -70,7 +69,7 @@ export default async function BuyServicePage({
       {isGrizzlyMock && (
         <Alert variant="info">
           Mode démo : prix et numéros simulés. Le code SMS arrivera
-          automatiquement ~8 s après l'achat.
+          automatiquement ~8 s après l&apos;achat.
         </Alert>
       )}
       {error && <Alert variant="error">{error}</Alert>}

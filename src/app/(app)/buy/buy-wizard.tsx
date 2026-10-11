@@ -15,6 +15,9 @@ type Country = {
   name: string;
   iso: string | null;
   count: number;
+  /* Taux de reception mesure sur nos ventes, 0-100. Absent si trop peu de
+     ventes pour que le chiffre signifie quelque chose. */
+  successRate?: number;
   priceXof: number;
   reliable: boolean;
 };
@@ -532,7 +535,9 @@ export function BuyWizard({
                           )}
                         </span>
                         <span className="block text-xs text-muted">
-                          {c.count.toLocaleString("fr-FR")} numéros disponibles
+                          {typeof c.successRate === "number"
+                            ? `${Math.round(c.successRate)} % reçoivent leur code`
+                            : `${c.count.toLocaleString("fr-FR")} numéros disponibles`}
                         </span>
                       </span>
                       <span className="shrink-0 text-sm font-bold tabular-nums">
@@ -630,12 +635,12 @@ export function BuyWizard({
               <strong>20 minutes</strong> : un seul code, puis le numéro est
               rendu. <strong className="text-primary">Numéro dédié</strong> : il
               reste à vous et reçoit plusieurs SMS pendant toute la durée — vous
-              pouvez réessayer autant de fois qu'il faut.
+              pouvez réessayer autant de fois qu&apos;il faut.
               {service?.code === "wa" && (
                 <>
                   {" "}
                   <strong className="text-accent">
-                    Sur WhatsApp, c'est de loin le plus fiable.
+                    Sur WhatsApp, c&apos;est de loin le plus fiable.
                   </strong>
                 </>
               )}

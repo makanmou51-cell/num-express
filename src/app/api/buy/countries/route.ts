@@ -25,6 +25,9 @@ export async function GET(req: Request) {
         count: o.count,
         priceXof: o.priceXof,
         reliable: o.reliable ?? false,
+        /* Le taux mesure, pour que l assistant d achat puisse l afficher lui
+           aussi : le client doit voir le meme chiffre partout. */
+        successRate: o.successRate,
       })),
     });
   } catch (e) {
