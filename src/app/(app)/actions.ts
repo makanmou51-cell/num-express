@@ -9,7 +9,12 @@ import {
   purchaseNumber,
   PurchaseError,
 } from "@/lib/activations";
-import { confirmTopup, startTopup, getPaymentProvider } from "@/lib/payments";
+import {
+  confirmTopup,
+  startTopup,
+  getPaymentProvider,
+  reconcilePendingTopups,
+} from "@/lib/payments";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/db";
 import { isGrizzlyMock } from "@/lib/grizzly/client";
@@ -50,6 +55,20 @@ export async function purchaseAction(formData: FormData): Promise<void> {
   if (!parsed.success) {
     redirect(`/buy?error=${encodeURIComponent("Sélection invalide.")}`);
   }
+  /* Le client a peut-etre paye sans que le webhook soit arrive : il aurait
+     alors un solde insuffisant alors que son argent est bien parti. On le
+     reconcilie AVANT de verifier son solde — c est le moment ou il revient
+     sur le site, donc le plus tot ou l on peut agir pour lui.
+     Mesure en production : un depot de 900 F a mis 63 minutes a etre credite,
+     parce que rien ne le verifiait entre le webhook perdu et le retour du
+     client sur la page portefeuille. */
+  try {
+    await reconcilePendingTopups(user.id);
+  } catch {
+    /* Prestataire indisponible : on continue. Si le solde suffit deja,
+       l achat doit aboutir malgre tout. */
+  }
+
   const { service, country } = parsed.data;
   const verifyType =
     String(formData.get("verify") ?? "SMS").toUpperCase() === "CALL"
