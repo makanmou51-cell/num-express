@@ -99,24 +99,55 @@ const lire = unstable_cache(
    On utilise une fenetre COURTE : un pays peut mourir du jour au lendemain si
    le fournisseur change de pool, et la moyenne sur 120 jours masquerait la
    rupture. Il suffit que le pays redelivre pour qu il revienne tout seul. */
-const FENETRE_MORT_JOURS = 30;
+/* DEUX fenetres, et un pays est retire si l une OU l autre le condamne.
+   Aucune ne suffit seule :
+   - 30 jours attrape un effondrement recent. Le Royaume-Uni y est a 2,9 %
+     (5 codes sur 174) alors qu il tenait 14 % en septembre.
+   - 60 jours garde retire un pays deja sorti du catalogue. Une fois retiree,
+     l Italie cesse d etre vendue, son echantillon sur 30 jours tombe sous le
+     seuil, et elle reviendrait toute seule — un va-et-vient absurde. Sur
+     60 jours elle reste a 1,4 % (1 code sur 73) et reste donc dehors.
+   Un pays qui redelivre vraiment repasse les deux seuils et revient. */
+const FENETRES_MORT_JOURS = [30, 60];
 const MIN_VENTES_MORT = 40;
 
+/* En dessous de ce taux, un pays est mort en pratique meme s il delivre
+   encore de temps en temps.
+   La premiere version exigeait ZERO code, ce qui laissait passer le
+   Royaume-Uni : 5 codes sur 176 ventes en 30 jours, et 1 seul sur 158 ventes
+   les deux dernieres semaines. Cent cinquante-sept clients ont paye, attendu,
+   ete rembourses — et en ont conclu que le site ne marche pas. L argent leur
+   revient ; la confiance, non.
+   Trois pour cent est volontairement bas : il ecarte le Royaume-Uni et
+   l Italie sans toucher a l Allemagne (6,6 %), la Grece (5,7 %) ni la
+   Croatie (4,5 %). */
+const TAUX_PLANCHER = 3;
+
 async function calculerPaysMorts(serviceCode: string): Promise<string[]> {
-  const depuis = new Date(Date.now() - FENETRE_MORT_JOURS * 86_400_000);
-  const base = { serviceCode, createdAt: { gte: depuis } };
-  const [total, recus] = await Promise.all([
-    prisma.activation.groupBy({ by: ["countryCode"], where: base, _count: { _all: true } }),
-    prisma.activation.groupBy({
-      by: ["countryCode"],
-      where: { ...base, smsCode: { not: null } },
-      _count: { _all: true },
-    }),
-  ]);
-  const recusPar = new Map(recus.map((r) => [r.countryCode, r._count._all]));
-  return total
-    .filter((t) => t._count._all >= MIN_VENTES_MORT && (recusPar.get(t.countryCode) ?? 0) === 0)
-    .map((t) => t.countryCode);
+  const morts = new Set<string>();
+  for (const jours of FENETRES_MORT_JOURS) {
+    const depuis = new Date(Date.now() - jours * 86_400_000);
+    const base = { serviceCode, createdAt: { gte: depuis } };
+    const [total, recus] = await Promise.all([
+      prisma.activation.groupBy({
+        by: ["countryCode"],
+        where: base,
+        _count: { _all: true },
+      }),
+      prisma.activation.groupBy({
+        by: ["countryCode"],
+        where: { ...base, smsCode: { not: null } },
+        _count: { _all: true },
+      }),
+    ]);
+    const recusPar = new Map(recus.map((r) => [r.countryCode, r._count._all]));
+    for (const t of total) {
+      if (t._count._all < MIN_VENTES_MORT) continue;
+      const r = recusPar.get(t.countryCode) ?? 0;
+      if ((r / t._count._all) * 100 < TAUX_PLANCHER) morts.add(t.countryCode);
+    }
+  }
+  return [...morts];
 }
 
 const lireMorts = unstable_cache(calculerPaysMorts, ["pays-morts"], {
