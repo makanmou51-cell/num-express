@@ -147,3 +147,87 @@ export async function mesuresMaison(
     return new Map();
   }
 }
+
+/* ── Opérateurs écartés ───────────────────────────────────────────────────
+   HeroSMS publie un taux de réussite par opérateur, et c'est lui qui guide
+   notre sélection. Mais ce chiffre est un agrégat mondial : il peut recommander
+   un opérateur qui ne délivre rien chez NOS clients.
+
+   Deux niveaux, dans cet ordre :
+
+   1. LA MESURE. Dès qu'un opérateur atteint le seuil de ventes sans livrer un
+      seul code, on cesse de l'imposer. C'est le mécanisme durable — il se
+      déclenche tout seul et se corrige tout seul.
+
+   2. LA DÉCISION MANUELLE, pour les cas où l'on sait avant d'avoir le volume.
+      Chaque entrée porte sa raison et sa date, et doit disparaître dès que la
+      mesure prend le relais. Sans cette discipline on retombe sur la carte
+      écrite à la main de septembre, qui avait fait chuter les résultats.
+
+   Écarter un opérateur ne retire aucun pays de la vente : on repasse à l'achat
+   libre, c'est-à-dire exactement le comportement par défaut. */
+
+const MIN_VENTES_OPERATEUR = 15;
+
+/** Décisions manuelles : code pays HeroSMS -> opérateurs à ne pas imposer. */
+const ECARTES_A_LA_MAIN: Record<string, string[]> = {
+  /* Italie, 14 octobre 2026. Michael constate que les codes ne sortent pas sur
+     vodafone. Nos mesures ne portent que sur 2 ventes — trop peu pour trancher
+     statistiquement, mais l'Italie entière plafonne à 4 codes sur 108 et rien
+     n'indique que vodafone fasse mieux que l'achat libre. On repasse donc en
+     achat libre pour ce pays. À retirer dès que la mesure aura 15 ventes. */
+  "86": ["vodafone"],
+};
+
+/** `${countryCode}:${operator}` à ne jamais imposer pour ce service. */
+export async function operateursEcartes(
+  serviceCode: string,
+): Promise<Set<string>> {
+  const out = new Set<string>();
+  for (const [pays, ops] of Object.entries(ECARTES_A_LA_MAIN)) {
+    for (const o of ops) out.add(`${pays}:${o}`);
+  }
+  try {
+    for (const k of await lireEcartes(serviceCode)) out.add(k);
+  } catch {
+    /* Base indisponible : les décisions manuelles s'appliquent quand même. */
+  }
+  return out;
+}
+
+async function calculerEcartes(serviceCode: string): Promise<string[]> {
+  const depuis = new Date(Date.now() - FENETRE_JOURS * 86_400_000);
+  const base = {
+    serviceCode,
+    createdAt: { gte: depuis },
+    operator: { not: null },
+    NOT: { operator: "any" },
+  };
+  const [total, recus] = await Promise.all([
+    prisma.activation.groupBy({
+      by: ["countryCode", "operator"],
+      where: base,
+      _count: { _all: true },
+    }),
+    prisma.activation.groupBy({
+      by: ["countryCode", "operator"],
+      where: { ...base, smsCode: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
+  const recusPar = new Map(
+    recus.map((r) => [`${r.countryCode}:${r.operator}`, r._count._all]),
+  );
+  return total
+    .filter(
+      (t) =>
+        t._count._all >= MIN_VENTES_OPERATEUR &&
+        (recusPar.get(`${t.countryCode}:${t.operator}`) ?? 0) === 0,
+    )
+    .map((t) => `${t.countryCode}:${t.operator}`);
+}
+
+const lireEcartes = unstable_cache(calculerEcartes, ["operateurs-ecartes"], {
+  revalidate: 21_600,
+  tags: ["mesures-maison"],
+});

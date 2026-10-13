@@ -1,5 +1,6 @@
 import "server-only";
 import { operateursMesures } from "@/lib/grizzly/deliverability";
+import { operateursEcartes } from "@/lib/grizzly/mesures-maison";
 
 /**
  * Opérateurs à imposer à l'achat — désormais MESURÉS, non plus devinés.
@@ -55,7 +56,25 @@ export async function preferredOperators(
 ): Promise<readonly string[]> {
   if (!SELECTION_ACTIVE) return [];
   try {
-    return await operateursMesures(serviceCode, countryCode);
+    const proposes = await operateursMesures(serviceCode, countryCode);
+    if (proposes.length === 0) return [];
+
+    /* Dernier filtre, et il prime sur la recommandation du fournisseur : ses
+       taux sont un agregat mondial, les notres viennent de NOS clients. Un
+       operateur ecarte n est pas remplace de force — s il ne reste rien, on
+       achete librement, ce qui est exactement le comportement par defaut et
+       ne fait perdre aucune vente. */
+    const ecartes = await operateursEcartes(serviceCode);
+    const retenus = proposes.filter(
+      (o) => !ecartes.has(`${countryCode}:${o}`),
+    );
+    if (retenus.length === 0 && proposes.length > 0) {
+      console.warn(
+        `[operateurs] tous ecartes pour ${serviceCode}/${countryCode} ` +
+          `(${proposes.join(", ")}) — achat libre`,
+      );
+    }
+    return retenus;
   } catch {
     // Une statistique indisponible ne doit JAMAIS empêcher une vente.
     return [];
