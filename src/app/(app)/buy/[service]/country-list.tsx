@@ -109,10 +109,18 @@ export function CountryList({
             );
           })}
         </div>
-        {verify === "CALL" && (
+        {/* L aide etait ecrite POUR WHATSAPP uniquement : « Sur WhatsApp,
+            choisissez M appeler ». Un client Telegram n y comprenait rien,
+            alors que chaque service a son propre parcours. Telegram, en
+            particulier, envoie d abord le code DANS l application si une
+            autre session existe — sans cette precision, le client attend un
+            SMS qui n arrivera jamais. */}
+        {verify === "CALL" && <AideAppel service={service} />}
+        {verify === "SMS" && service === "tg" && (
           <p className="px-1 text-xs text-muted">
-            Sur WhatsApp, choisissez «&nbsp;M&apos;appeler&nbsp;» : le code reçu
-            par appel s&apos;affichera ici. Idéal quand le SMS tarde.
+            Telegram envoie d&apos;abord le code <strong>dans l&apos;application</strong>{" "}
+            si vous y êtes déjà connecté ailleurs. Sinon il envoie un SMS, puis
+            propose «&nbsp;Appelez-moi&nbsp;» après environ deux minutes.
           </p>
         )}
       </div>
@@ -293,4 +301,39 @@ function Flag({ iso }: { iso: string | null }) {
       className="h-5 w-7 shrink-0 rounded-sm object-cover shadow-sm ring-1 ring-black/5"
     />
   );
+}
+
+/**
+ * Aide à la réception par appel, propre à chaque service.
+ *
+ * Pourquoi ce n'est pas un seul texte : les parcours n'ont rien à voir.
+ * WhatsApp affiche un bouton « M'appeler » après l'échec du SMS. Telegram,
+ * lui, essaie d'abord l'application elle-même, puis le SMS, puis propose
+ * l'appel au bout de deux minutes environ — un client qui ne le sait pas
+ * reste devant un écran vide en croyant que le numéro ne marche pas.
+ *
+ * Mesure du 13 octobre : sur 34 ventes Telegram, 100 % ont été achetées en
+ * mode SMS, aucune en mode appel. L'option existait mais rien n'expliquait
+ * quand s'en servir.
+ */
+function AideAppel({ service }: { service: string }) {
+  const texte =
+    service === "tg" ? (
+      <>
+        Sur Telegram, attendez le SMS puis touchez{" "}
+        <strong>«&nbsp;Appelez-moi&nbsp;»</strong> (il apparaît après environ
+        deux minutes). Le code dicté s&apos;affichera ici.
+      </>
+    ) : service === "wa" ? (
+      <>
+        Sur WhatsApp, choisissez <strong>«&nbsp;M&apos;appeler&nbsp;»</strong>{" "}
+        quand le SMS tarde. Le code reçu par appel s&apos;affichera ici.
+      </>
+    ) : (
+      <>
+        Choisissez l&apos;option d&apos;appel dans l&apos;application quand le
+        SMS tarde. Le code dicté s&apos;affichera ici.
+      </>
+    );
+  return <p className="px-1 text-xs text-muted">{texte}</p>;
 }
