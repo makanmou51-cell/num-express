@@ -215,6 +215,17 @@ export async function setUserRole(userId: string, role: "USER" | "ADMIN") {
   return prisma.user.update({ where: { id: userId }, data: { role } });
 }
 
+/* Confirmation a la main : beaucoup de clients ne recoivent jamais l'e-mail
+   de verification (quota d'envoi quotidien, dossier spam) et restent bloques
+   « non verifies » alors qu'ils sont bien reels. L'admin confirme lui-meme
+   depuis /admin/users au lieu d'ouvrir la base. */
+export async function confirmUserEmail(userId: string) {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { emailVerifiedAt: new Date() },
+  });
+}
+
 /** Statistiques Boost pour l'admin (CA, commandes, solde Peakerr). */
 export async function getBoostAdminStats() {
   const [total, revenue, byStatus, peakBal] = await Promise.all([

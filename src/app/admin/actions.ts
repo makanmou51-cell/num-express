@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
-import { manualAdjustBalance, setUserRole, sendUserEmail } from "@/lib/admin";
+import {
+  manualAdjustBalance,
+  setUserRole,
+  sendUserEmail,
+  confirmUserEmail,
+} from "@/lib/admin";
 import { adminRefundRental } from "@/lib/rentals";
 import { updateSettings, SETTING_KEYS, type AppSettings } from "@/lib/settings";
 import { InsufficientFundsError } from "@/lib/wallet";
@@ -71,6 +76,20 @@ export async function setRoleAction(
   await setUserRole(userId, role);
   revalidatePath(`/admin/users/${userId}`);
   return { success: `Rôle mis à jour : ${role}.` };
+}
+
+export async function confirmEmailAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+  const userId = String(formData.get("userId") ?? "");
+  if (!userId) return { error: "Utilisateur invalide." };
+  await confirmUserEmail(userId);
+  /* Liste ET fiche : le bouton est appelable depuis les deux écrans. */
+  revalidatePath("/admin/users");
+  revalidatePath(`/admin/users/${userId}`);
+  return { success: "E-mail confirmé." };
 }
 
 export async function sendUserEmailAction(

@@ -7,6 +7,7 @@ import { durationLabel } from "@/lib/rentals";
 import { Badge, Card } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
 import { AdjustBalanceForm, RoleForm, EmailForm } from "./user-actions";
+import { ConfirmEmailButton } from "../confirm-email-button";
 import { UserActivity } from "./user-activity";
 
 export const metadata: Metadata = { title: "Admin — Utilisateur" };
@@ -66,6 +67,11 @@ export default async function AdminUserPage({
           <p className="mt-1 text-xl font-bold">
             {user.emailVerifiedAt ? "Oui" : "Non"}
           </p>
+          {!user.emailVerifiedAt && (
+            <div className="mt-2">
+              <ConfirmEmailButton userId={user.id} />
+            </div>
+          )}
         </Card>
       </div>
 

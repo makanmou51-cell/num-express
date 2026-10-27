@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { listUsers } from "@/lib/admin";
 import { Badge, Card, Input } from "@/components/ui";
+import { ConfirmEmailButton } from "./confirm-email-button";
 import { formatXof } from "@/lib/pricing";
 
 export const metadata: Metadata = { title: "Admin — Utilisateurs" };
@@ -53,9 +54,12 @@ export default async function AdminUsersPage({
                       <Badge className="bg-slate-800 text-white">admin</Badge>
                     )}
                     {!u.emailVerifiedAt && (
-                      <Badge className="bg-amber-100 text-amber-800">
-                        non vérifié
-                      </Badge>
+                      <>
+                        <Badge className="bg-amber-100 text-amber-800">
+                          non vérifié
+                        </Badge>
+                        <ConfirmEmailButton userId={u.id} />
+                      </>
                     )}
                   </div>
                 </td>
