@@ -5,16 +5,30 @@ import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { listActivations, refundExpiredForUser } from "@/lib/activations";
 import { Alert, Card, ButtonLink } from "@/components/ui";
+import { ServiceIcon } from "@/components/service-icon";
 import { formatXof } from "@/lib/pricing";
 import { VerifyBanner } from "@/components/verify-banner";
 import { RecentActivations } from "./recent-activations";
 import Link from "next/link";
 
-const TONES: Record<string, string> = {
-  blue: "bg-blue-50 text-blue-600",
-  violet: "bg-violet-50 text-violet-600",
-  green: "bg-primary/10 text-primary",
-};
+/* Vrais logos officiels (ServiceIcon / Simple Icons) en pile façon « apps » :
+   le client reconnaît les marques d'un coup d'œil — fini les pictogrammes
+   génériques en carrés teintés. */
+function BrandStack({
+  codes,
+  size = "h-9 w-9",
+}: {
+  codes: string[];
+  size?: string;
+}) {
+  return (
+    <span className="flex -space-x-2">
+      {codes.map((c) => (
+        <ServiceIcon key={c} code={c} className={`${size} ring-2 ring-white`} />
+      ))}
+    </span>
+  );
+}
 
 export default async function DashboardPage({
   searchParams,
@@ -71,22 +85,19 @@ export default async function DashboardPage({
           </div>
         </div>
         <QuickRow
-          iconPath="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0"
-          tone="blue"
+          icons={["wa", "tg", "go"]}
           title="Acheter un numéro"
           desc="Code SMS en quelques secondes"
           href="/buy"
         />
         <QuickRow
-          iconPath="M3 17l6-6 4 4 8-8M21 7v6h-6"
-          tone="green"
+          icons={["lf", "ig", "fb"]}
           title="Boost réseaux"
           desc="Followers, likes et vues"
           href="/boost"
         />
         <QuickRow
-          iconPath="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75M1 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2"
-          tone="violet"
+          icons={["fb", "lf", "ig"]}
           title="Comptes réseaux sociaux"
           desc="TikTok, Facebook Europe, Instagram"
           href="/comptes"
@@ -125,8 +136,7 @@ export default async function DashboardPage({
             accent. Elle était en petit bouton vert aligné à gauche, identique
             à celui du boost — donc aucune ne ressortait. */}
         <QuickCard
-          iconPath="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0"
-          tone="blue"
+          icons={["wa", "tg", "go"]}
           title="Acheter un numéro"
           desc="Code SMS en quelques secondes, ou numéro dédié en location."
           href="/buy"
@@ -135,8 +145,7 @@ export default async function DashboardPage({
         />
 
         <QuickCard
-          iconPath="M3 17l6-6 4 4 8-8M21 7v6h-6"
-          tone="green"
+          icons={["lf", "ig", "fb"]}
           title="Boost réseaux"
           desc="Followers, likes et vues pour tes réseaux."
           href="/boost"
@@ -144,8 +153,7 @@ export default async function DashboardPage({
         />
 
         <QuickCard
-          iconPath="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75M1 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2"
-          tone="violet"
+          icons={["fb", "lf", "ig"]}
           title="Comptes réseaux sociaux"
           desc="Comptes TikTok, Facebook Europe et Instagram, livrés immédiatement."
           href="/comptes"
@@ -174,17 +182,15 @@ export default async function DashboardPage({
   );
 }
 
-/* Raccourci d'une ligne (mobile) : icône + titre + description tronquée +
+/* Raccourci d'une ligne (mobile) : logos + titre + description tronquée +
    chevron. Toute la ligne est le lien — la cible tactile fait ~64 px. */
 function QuickRow({
-  iconPath,
-  tone,
+  icons,
   title,
   desc,
   href,
 }: {
-  iconPath: string;
-  tone: keyof typeof TONES;
+  icons: string[];
   title: string;
   desc: string;
   href: string;
@@ -194,21 +200,7 @@ function QuickRow({
       href={href}
       className="flex items-center gap-3 rounded-xl border border-border bg-white p-3 transition-colors active:bg-gray-50"
     >
-      <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${TONES[tone]}`}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          className="h-5 w-5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d={iconPath} />
-        </svg>
-      </span>
+      <BrandStack codes={icons} size="h-8 w-8" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold">{title}</span>
         <span className="block truncate text-xs text-muted">{desc}</span>
@@ -230,8 +222,7 @@ function QuickRow({
 }
 
 function QuickCard({
-  iconPath,
-  tone,
+  icons,
   title,
   desc,
   href,
@@ -240,8 +231,7 @@ function QuickCard({
   accent = false,
   violet = false,
 }: {
-  iconPath: string;
-  tone: keyof typeof TONES;
+  icons: string[];
   title: string;
   desc: string;
   href: string;
@@ -255,21 +245,7 @@ function QuickCard({
   return (
     <Card className="flex flex-col justify-between p-4">
       <div>
-        <div
-          className={`flex h-10 w-10 items-center justify-center rounded-xl ${TONES[tone]}`}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d={iconPath} />
-          </svg>
-        </div>
+        <BrandStack codes={icons} />
         <p className="mt-3 font-semibold">{title}</p>
         <p className="mt-1 text-sm text-muted">{desc}</p>
       </div>
