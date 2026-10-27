@@ -64,6 +64,7 @@ git push -u origin main
 | `ADMIN_EMAILS` | ton e-mail admin |
 | `GRIZZLY_API_KEY` | ta clé Grizzly |
 | `GRIZZLY_CURRENCY` | `USD` |
+| `ACCKIT_API_KEY` | ta clé AccKit (comptes réseaux sociaux) |
 | `PAYMENT_PROVIDER` | `leekpay` |
 | `LEEKPAY_SECRET_KEY` | `sk_live_...` |
 | `LEEKPAY_PUBLIC_KEY` | `pk_live_...` |

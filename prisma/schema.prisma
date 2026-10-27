@@ -40,6 +40,7 @@ model User {
   transactions       Transaction[]
   verificationTokens VerificationToken[]
   boostOrders        BoostOrder[]
+  accountOrders      AccountOrder[]
   rentals            Rental[]
   pushSubscriptions  PushSubscription[]
 
@@ -163,6 +164,41 @@ model BoostOrder {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+// ──────────────── Compte de réseaux sociaux acheté (AccKit) ────────────
+// Compte vendu a l'unite (Facebook, Gmail, TikTok...) via AccKit. Livre dans
+// la reponse /buy, ou plus tard pour les produits « pending » (prepares par un
+// fournisseur). Les identifiants livres sont stockes dans `accounts` (une
+// ligne full_info par compte) : AccKit les supprime de SON cote apres 15
+// jours, notre copie reste — le client retrouve toujours son achat ici.
+//
+// status : PENDING (paye chez AccKit, livraison plus tard) | DELIVERED
+// (identifiants stockes) | CHECK (timeout au /buy : commande peut-etre creee
+// cote AccKit, PAS encore debitee — reconciliee via /orders) | FAILED
+// (jamais creee : rien debite, rien a rembourser).
+model AccountOrder {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productId    Int     // id_product AccKit
+  productName  String
+  categoryName String?
+  quantity     Int
+  priceXof     Int     // montant débité (ou à débiter) côté client, en F CFA
+  costVnd      Int?    // total réellement facturé par AccKit (VND), lu via /order
+
+  providerOrderId String? @unique // order_id AccKit
+  status          String  @default("PENDING")
+  accounts        String? // une ligne « full_info » par compte livré
+  refunded        Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
 }
 
 // Jetons à usage unique : vérification d'e-mail et réinitialisation de mot de passe.

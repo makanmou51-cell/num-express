@@ -143,6 +143,17 @@ export const env = {
     baseUrl: str("PEAKERR_BASE_URL", "https://peakerr.com/api/v2"),
   },
 
+  // ── Comptes de réseaux sociaux (revendeur AccKit) ──
+  acckit: {
+    apiKey: str("ACCKIT_API_KEY"),
+    baseUrl: str("ACCKIT_BASE_URL", "https://acckit.com/api/v1"),
+    // Combien de VND (dong) pour 1 F CFA : AccKit facture en VND.
+    vndPerXof: num("ACCKIT_VND_PER_XOF", 42),
+    // Prix public = coût × (1 + taux) + fixe, arrondi et plancher de pricing.
+    marginRate: num("ACCKIT_MARGIN_RATE", 0.35),
+    marginFixedXof: num("ACCKIT_MARGIN_FIXED_XOF", 100),
+  },
+
   // ── Affiliation ──
   affiliate: {
     // Part de chaque achat d'un filleul reversée au parrain (0..1).

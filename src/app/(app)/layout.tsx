@@ -18,6 +18,7 @@ const NAV = [
   { href: "/buy", label: "Acheter" },
   { href: "/numbers", label: "Mes numéros" },
   { href: "/boost", label: "Boost" },
+  { href: "/comptes", label: "Comptes" },
   { href: "/wallet", label: "Solde" },
   { href: "/affiliate", label: "Parrainage" },
 ];
