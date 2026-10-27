@@ -10,7 +10,7 @@ import {
   listAccountOrders,
   refreshUserAccountOrders,
 } from "@/lib/acckit/orders";
-import { AccountBuyForm } from "./buy-form";
+import { CatalogBrowser } from "./catalog-browser";
 
 export const metadata: Metadata = { title: "Comptes réseaux sociaux" };
 /* /buy peut mettre jusqu'à ~50 s chez AccKit (fournisseur lent). Sans ce
@@ -69,44 +69,9 @@ export default async function ComptesPage() {
         </Card>
       )}
 
-      {/* Catalogue classé par réseau : TikTok, Facebook par pays, Instagram.
-          Peu de sections → tout est visible d'un coup, sans menu pliant. */}
+      {/* Catalogue : onglets par réseau + recherche (CatalogBrowser). */}
       {configured && !catalogError && catalog.length > 0 && (
-        <div className="space-y-6">
-          {catalog.map((s) => (
-            <section key={s.label} className="space-y-3">
-              <h2 className="flex items-center gap-2 text-lg font-semibold">
-                {s.label}
-                <Badge className="bg-gray-100 text-gray-600">
-                  {s.products.length}
-                </Badge>
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {s.products.map((p) => (
-                  <div
-                    key={p.id_product}
-                    className="rounded-xl border border-border bg-white p-4"
-                  >
-                    <p className="text-sm font-medium">{p.name}</p>
-                    {p.desc && (
-                      <p className="mt-1 line-clamp-2 text-xs text-muted">
-                        {p.desc}
-                      </p>
-                    )}
-                    <p className="mt-2 text-xs text-muted">
-                      Stock : {p.quantity}
-                    </p>
-                    <AccountBuyForm
-                      productId={p.id_product}
-                      unitPriceXof={p.priceXof}
-                      stock={p.quantity}
-                    />
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+        <CatalogBrowser sections={catalog} />
       )}
 
       {/* Commandes du client : identifiants livrés ici. */}

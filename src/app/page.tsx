@@ -18,6 +18,7 @@ export default async function HomePage() {
   // tableau de bord (un détour de plus avant l'achat).
   const cta = user ? "/buy" : "/register";
   const boostCta = user ? "/boost" : "/register";
+  const compteCta = user ? "/comptes" : "/register";
 
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden bg-background">
@@ -53,6 +54,12 @@ export default async function HomePage() {
               className="text-sm font-medium text-white/70 transition-colors hover:text-white"
             >
               Boost
+            </a>
+            <a
+              href="#comptes"
+              className="text-sm font-medium text-white/70 transition-colors hover:text-white"
+            >
+              Comptes
             </a>
             <a
               href="#tarifs"
@@ -129,8 +136,12 @@ export default async function HomePage() {
             <p className="mt-7 max-w-lg text-[17px] leading-[1.65] text-white/65">
               Un numéro jetable pour WhatsApp, Telegram, Instagram et{" "}
               <strong className="font-semibold text-white">2 000 services</strong>,
-              dans 200 pays — sans jamais donner le vôtre. Et des abonnés, des
-              vues et des likes pour TikTok, Instagram et Facebook. Payé en{" "}
+              dans 200 pays — sans jamais donner le vôtre. Des abonnés, des
+              vues et des likes pour TikTok, Instagram et Facebook. Et des{" "}
+              <strong className="font-semibold text-white">
+                comptes TikTok, Facebook et Instagram prêts à l&apos;emploi
+              </strong>
+              , livrés immédiatement. Payé en{" "}
               <strong className="font-semibold text-white">Mobile Money</strong>.
             </p>
 
@@ -149,6 +160,12 @@ export default async function HomePage() {
                 className="inline-flex min-h-[52px] items-center justify-center border-b-2 border-white/30 text-[15px] font-semibold text-white transition-colors duration-200 hover:border-white sm:justify-start sm:border-b sm:pb-1"
               >
                 Booster mes réseaux
+              </Link>
+              <Link
+                href={compteCta}
+                className="inline-flex min-h-[52px] items-center justify-center border-b-2 border-white/30 text-[15px] font-semibold text-white transition-colors duration-200 hover:border-white sm:justify-start sm:border-b sm:pb-1"
+              >
+                Comptes prêts à l&apos;emploi
               </Link>
             </div>
 
@@ -279,6 +296,62 @@ export default async function HomePage() {
           <p className="text-sm text-muted">
             Refill inclus · Remboursement si annulé
           </p>
+        </div>
+      </section>
+
+      {/* ───────────── Comptes réseaux sociaux ───────────── */}
+      <section
+        id="comptes"
+        className="border-y border-border/60 bg-white"
+      >
+        <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-20">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-sm font-medium text-violet-700">
+              Nouveau
+            </span>
+            <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
+              Des comptes prêts à l&apos;emploi
+            </h2>
+            <p className="mt-3 text-muted">
+              Comptes TikTok, Facebook (France, Allemagne, Royaume-Uni) et
+              Instagram — livrés immédiatement après le paiement, conservés
+              dans votre espace.
+            </p>
+          </div>
+          <div className="mt-10 grid gap-5 sm:grid-cols-3">
+            <BoostCard
+              code="lf"
+              network="TikTok"
+              items="Comptes US, Japon, Vietnam…"
+              price="dès 2 600 F CFA"
+            />
+            <BoostCard
+              code="fb"
+              network="Facebook Europe"
+              items="France · Allemagne · Royaume-Uni"
+              price="dès 5 000 F CFA"
+            />
+            <BoostCard
+              code="ig"
+              network="Instagram"
+              items="Comptes anciens et neufs"
+              price="dès 2 600 F CFA"
+            />
+          </div>
+          <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            {/* Violet = couleur du service Comptes, cohérent avec le bouton
+                d'achat de la page /comptes. Lien direct (pas ButtonLink) pour
+                ne pas multiplier les variantes du composant partagé. */}
+            <Link
+              href={compteCta}
+              className="inline-flex min-h-12 items-center justify-center rounded-lg bg-violet-600 px-5 py-3 text-base font-medium text-white transition-all duration-200 hover:bg-violet-700 active:scale-[0.97]"
+            >
+              Parcourir les comptes
+            </Link>
+            <p className="text-sm text-muted">
+              Livraison immédiate · Identifiants conservés dans votre espace
+            </p>
+          </div>
         </div>
       </section>
 
@@ -584,8 +657,8 @@ export default async function HomePage() {
               <Logo />
               <p className="mt-4 max-w-xs text-sm text-muted">
                 Numéros virtuels pour recevoir vos codes SMS (Telegram, Google,
-                Instagram…) et boost de réseaux sociaux (followers, likes,
-                vues). Paiement Mobile Money.
+                Instagram…), boost de réseaux sociaux (followers, likes, vues)
+                et comptes prêts à l'emploi. Paiement Mobile Money.
               </p>
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {["Moov", "MTN", "Celtiis", "Visa"].map((p) => (
@@ -605,6 +678,7 @@ export default async function HomePage() {
             <FooterCol title="Produit">
               <FooterLink href="#services">Numéros virtuels</FooterLink>
               <FooterLink href="#boost">Boost réseaux</FooterLink>
+              <FooterLink href="#comptes">Comptes</FooterLink>
               <FooterLink href="#tarifs">Tarifs</FooterLink>
               <FooterLink href="#faq">FAQ</FooterLink>
             </FooterCol>

@@ -37,7 +37,10 @@ export function AccountBuyForm({
         </Alert>
       )}
       <input type="hidden" name="product" value={productId} />
-      <div className="flex items-center gap-2">
+      {/* Bouton violet = couleur du service « Comptes » (orange = numéro,
+          vert = boost). Le sélecteur [&_button] du parent est plus spécifique
+          que les classes de variante, il gagne à coup sûr. */}
+      <div className="flex items-center gap-2 [&_button]:bg-violet-600 [&_button]:text-white [&_button:hover]:bg-violet-700 [&_button:hover]:shadow-violet-500/25">
         <select
           name="quantity"
           value={qty}
