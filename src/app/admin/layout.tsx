@@ -9,6 +9,7 @@ const NAV = [
   { href: "/admin/funnel", label: "Entonnoir" },
   { href: "/admin/users", label: "Utilisateurs" },
   { href: "/admin/boost", label: "Boost 🚀" },
+  { href: "/admin/comptes", label: "Comptes" },
   { href: "/admin/broadcast", label: "Messages" },
   { href: "/admin/settings", label: "Réglages" },
   { href: "/admin/diagnostic", label: "Diagnostic" },

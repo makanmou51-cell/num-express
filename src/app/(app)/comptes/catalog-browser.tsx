@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui";
+import { ServiceIcon } from "@/components/service-icon";
 import { AccountBuyForm } from "./buy-form";
 
 /**
@@ -25,6 +26,14 @@ export interface BrowserProduct {
 export interface BrowserSection {
   label: string;
   products: BrowserProduct[];
+}
+
+/** Logo du réseau, déduit du nom de section (les labels viennent de catalog.ts). */
+function iconFor(label: string): string {
+  if (label.startsWith("Facebook")) return "fb";
+  if (label === "Instagram") return "ig";
+  if (label === "TikTok") return "lf";
+  return "ot";
 }
 
 export function CatalogBrowser({ sections }: { sections: BrowserSection[] }) {
@@ -69,8 +78,8 @@ export function CatalogBrowser({ sections }: { sections: BrowserSection[] }) {
         aria-label="Rechercher un compte"
       />
 
-      {/* Onglets : défilement horizontal sur téléphone, jamais de retour à la
-          ligne qui pousserait le contenu. */}
+      {/* Onglets avec logo du réseau : défilement horizontal sur téléphone,
+          jamais de retour à la ligne qui pousserait le contenu. */}
       {!searching && (
         <div
           role="tablist"
@@ -83,12 +92,16 @@ export function CatalogBrowser({ sections }: { sections: BrowserSection[] }) {
               role="tab"
               aria-selected={i === tab}
               onClick={() => setTab(i)}
-              className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                 i === tab
                   ? "bg-primary text-primary-foreground"
                   : "border border-border bg-white text-muted hover:text-foreground"
               }`}
             >
+              <ServiceIcon
+                code={iconFor(s.label)}
+                className="h-5 w-5 rounded-md border-0"
+              />
               {s.label} ({s.products.length})
             </button>
           ))}
@@ -103,7 +116,13 @@ export function CatalogBrowser({ sections }: { sections: BrowserSection[] }) {
         visible.map((s) => (
           <section key={s.label} className="space-y-3">
             {searching && (
-              <h2 className="text-lg font-semibold">{s.label}</h2>
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <ServiceIcon
+                  code={iconFor(s.label)}
+                  className="h-7 w-7 border-0"
+                />
+                {s.label}
+              </h2>
             )}
             <div className="grid gap-3 sm:grid-cols-2">
               {s.products.map((p) => (
@@ -111,13 +130,23 @@ export function CatalogBrowser({ sections }: { sections: BrowserSection[] }) {
                   key={p.id_product}
                   className="rounded-xl border border-border bg-white p-4"
                 >
-                  <p className="text-sm font-medium">{p.name}</p>
-                  {p.desc && (
-                    <p className="mt-1 line-clamp-2 text-xs text-muted">
-                      {p.desc}
-                    </p>
-                  )}
-                  <p className="mt-2 text-xs text-muted">Stock : {p.quantity}</p>
+                  <div className="flex items-start gap-3">
+                    <ServiceIcon
+                      code={iconFor(s.label)}
+                      className="h-10 w-10 border-0 bg-gray-50"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{p.name}</p>
+                      {p.desc && (
+                        <p className="mt-1 line-clamp-2 text-xs text-muted">
+                          {p.desc}
+                        </p>
+                      )}
+                      <p className="mt-2 text-xs text-muted">
+                        Stock : {p.quantity}
+                      </p>
+                    </div>
+                  </div>
                   <AccountBuyForm
                     productId={p.id_product}
                     unitPriceXof={p.priceXof}

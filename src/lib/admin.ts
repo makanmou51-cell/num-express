@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { applyWalletTx } from "@/lib/wallet";
 import { sendMail, broadcastTemplate } from "@/lib/mailer";
 import { peakerr } from "@/lib/peakerr/client";
+import { acckit } from "@/lib/acckit/client";
 
 export interface AdminStats {
   users: number;
@@ -256,6 +257,37 @@ export async function getBoostAdminStats() {
 /** Dernières commandes Boost (tous utilisateurs), pour l'admin. */
 export async function listAllBoostOrders(take = 30) {
   return prisma.boostOrder.findMany({
+    orderBy: { createdAt: "desc" },
+    take,
+    include: { user: { select: { email: true } } },
+  });
+}
+
+/** Statistiques Comptes pour l'admin (CA, commandes, solde AccKit). */
+export async function getAccountAdminStats() {
+  const [total, revenue, byStatus, accBal] = await Promise.all([
+    prisma.accountOrder.count(),
+    prisma.accountOrder.aggregate({
+      _sum: { priceXof: true },
+      where: { refunded: false },
+    }),
+    prisma.accountOrder.groupBy({ by: ["status"], _count: { _all: true } }),
+    acckit.balance().catch(() => null),
+  ]);
+  const counts: Record<string, number> = {};
+  for (const g of byStatus) counts[g.status] = g._count._all;
+  return {
+    total,
+    revenueXof: revenue._sum.priceXof ?? 0,
+    delivered: counts.DELIVERED ?? 0,
+    pending: (counts.PENDING ?? 0) + (counts.CHECK ?? 0),
+    acckitBalance: accBal, // VND, null si AccKit injoignable
+  };
+}
+
+/** Dernières commandes de comptes (tous clients), pour l'admin. */
+export function listAllAccountOrders(take = 30) {
+  return prisma.accountOrder.findMany({
     orderBy: { createdAt: "desc" },
     take,
     include: { user: { select: { email: true } } },
