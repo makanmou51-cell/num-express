@@ -46,34 +46,38 @@ export default async function DashboardPage({
         />
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Quatre cartes sur UNE ligne (lg) : solde + les 3 services visibles
+          d'un coup, sans scroll. Boutons compacts (sm) et une couleur par
+          service : orange = numéro (action principale), vert = boost,
+          blanc = comptes. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Solde — carte dégradée premium.
             La salutation « Bonjour X » est remontée DANS cette carte : en bloc
             séparé au-dessus, elle coûtait deux lignes de haut de page et
             repoussait les codes reçus hors du premier écran.
             Couleurs passées aux tokens (--primary-dark) : elles étaient
             écrites en dur, donc invisibles au reste du système. */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-dark to-[#0d5a37] p-5 text-white shadow-lg">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-dark to-[#0d5a37] p-4 text-white shadow-lg">
           <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-emerald-400/20 blur-2xl" />
           <p className="text-sm text-white/70">
             Bonjour{user.name ? ` ${user.name}` : ""} · Solde disponible
           </p>
-          <p className="mt-1 text-3xl font-extrabold tabular-nums tracking-tight">
+          <p className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight">
             {formatXof(balance)}
           </p>
           <ButtonLink
             href="/wallet"
             size="sm"
             variant="outline"
-            className="mt-4 border-transparent bg-white text-primary-dark hover:bg-white/90"
+            className="mt-3 border-transparent bg-white text-primary-dark hover:bg-white/90"
           >
             Recharger
           </ButtonLink>
         </div>
 
         {/* L'action qui fait gagner de l'argent : une seule par écran, en
-            accent, pleine largeur. Elle était en petit bouton vert aligné à
-            gauche, identique à celui du boost — donc aucune ne ressortait. */}
+            accent. Elle était en petit bouton vert aligné à gauche, identique
+            à celui du boost — donc aucune ne ressortait. */}
         <QuickCard
           iconPath="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0"
           tone="blue"
@@ -91,14 +95,13 @@ export default async function DashboardPage({
           desc="Followers, likes et vues pour tes réseaux."
           href="/boost"
           cta="Booster"
-          outline
         />
 
         <QuickCard
           iconPath="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75M1 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2"
           tone="violet"
           title="Comptes réseaux sociaux"
-          desc="Comptes Facebook, Gmail, TikTok, Instagram… livrés immédiatement."
+          desc="Comptes TikTok, Facebook Europe et Instagram, livrés immédiatement."
           href="/comptes"
           cta="Parcourir"
           outline
@@ -142,14 +145,14 @@ function QuickCard({
   href: string;
   cta: string;
   outline?: boolean;
-  /** Action dominante de l'écran : grand bouton orange pleine largeur. */
+  /** Action dominante de l'écran : bouton orange. */
   accent?: boolean;
 }) {
   return (
-    <Card className="flex flex-col justify-between p-5">
+    <Card className="flex flex-col justify-between p-4">
       <div>
         <div
-          className={`flex h-11 w-11 items-center justify-center rounded-xl ${TONES[tone]}`}
+          className={`flex h-10 w-10 items-center justify-center rounded-xl ${TONES[tone]}`}
         >
           <svg
             viewBox="0 0 24 24"
@@ -163,14 +166,14 @@ function QuickCard({
             <path d={iconPath} />
           </svg>
         </div>
-        <p className="mt-4 font-semibold">{title}</p>
+        <p className="mt-3 font-semibold">{title}</p>
         <p className="mt-1 text-sm text-muted">{desc}</p>
       </div>
       <ButtonLink
         href={href}
-        size={accent ? "lg" : "md"}
+        size="sm"
         variant={accent ? "accent" : outline ? "outline" : "primary"}
-        className="mt-4 w-full"
+        className="mt-3 w-full"
       >
         {cta}
       </ButtonLink>

@@ -149,9 +149,8 @@ export const env = {
     baseUrl: str("ACCKIT_BASE_URL", "https://acckit.com/api/v1"),
     // Combien de VND (dong) pour 1 F CFA : AccKit facture en VND.
     vndPerXof: num("ACCKIT_VND_PER_XOF", 42),
-    // Prix public = coût × (1 + taux) + fixe, arrondi et plancher de pricing.
-    marginRate: num("ACCKIT_MARGIN_RATE", 0.35),
-    marginFixedXof: num("ACCKIT_MARGIN_FIXED_XOF", 100),
+    // Bénéfice fixe par compte vendu (F CFA), ajouté au coût converti.
+    profitXof: num("ACCKIT_PROFIT_XOF", 2500),
   },
 
   // ── Affiliation ──

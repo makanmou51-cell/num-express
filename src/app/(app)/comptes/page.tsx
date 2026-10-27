@@ -52,8 +52,8 @@ export default async function ComptesPage() {
       <div>
         <h1 className="text-2xl font-bold">Comptes réseaux sociaux</h1>
         <p className="text-muted">
-          Comptes Facebook, Gmail, TikTok, Instagram… livrés immédiatement et
-          payés avec ton solde.
+          Comptes TikTok, Facebook (France, Allemagne, Royaume-Uni) et
+          Instagram — livrés immédiatement, payés avec ton solde.
         </p>
       </div>
 
@@ -69,27 +69,23 @@ export default async function ComptesPage() {
         </Card>
       )}
 
-      {/* Catalogue : une section pliable par catégorie (38 catégories —
-          toutes ouvertes, la page serait interminable sur téléphone). */}
+      {/* Catalogue classé par réseau : TikTok, Facebook par pays, Instagram.
+          Peu de sections → tout est visible d'un coup, sans menu pliant. */}
       {configured && !catalogError && catalog.length > 0 && (
-        <div className="space-y-3">
-          {catalog.map((c, i) => (
-            <details
-              key={c.id}
-              open={i < 3}
-              className="overflow-hidden rounded-xl border border-border bg-white"
-            >
-              <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 font-semibold">
-                <span>{c.name}</span>
+        <div className="space-y-6">
+          {catalog.map((s) => (
+            <section key={s.label} className="space-y-3">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                {s.label}
                 <Badge className="bg-gray-100 text-gray-600">
-                  {c.products.length}
+                  {s.products.length}
                 </Badge>
-              </summary>
-              <div className="grid gap-3 p-3 pt-0 sm:grid-cols-2">
-                {c.products.map((p) => (
+              </h2>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {s.products.map((p) => (
                   <div
                     key={p.id_product}
-                    className="rounded-xl border border-border bg-background p-4"
+                    className="rounded-xl border border-border bg-white p-4"
                   >
                     <p className="text-sm font-medium">{p.name}</p>
                     {p.desc && (
@@ -108,7 +104,7 @@ export default async function ComptesPage() {
                   </div>
                 ))}
               </div>
-            </details>
+            </section>
           ))}
         </div>
       )}
