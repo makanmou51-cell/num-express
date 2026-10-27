@@ -6,6 +6,7 @@ import { Button, ButtonLink } from "@/components/ui";
 import { MobileNav } from "@/components/mobile-nav";
 import { BottomNav } from "@/components/bottom-nav";
 import { InstallButton } from "@/components/install-button";
+import { IconLogout } from "@/components/icons";
 import { formatXof } from "@/lib/pricing";
 
 // Pas d'emoji dans un libellé de navigation : il dépend de la police du
@@ -68,11 +69,23 @@ export default async function AppLayout({
             </form>
           </div>
 
-          {/* Mobile : solde + menu latéral */}
+          {/* Mobile : solde + déconnexion + menu latéral */}
           <div className="flex items-center gap-2 md:hidden">
             <ButtonLink href="/wallet" variant="outline" size="sm">
               {balanceLabel}
             </ButtonLink>
+            {/* Visible sans ouvrir le tiroir : celui au bas du menu ☰ était
+                introuvable. Même gabarit que le bouton hamburger (40×40). */}
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                aria-label="Déconnexion"
+                title="Déconnexion"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border bg-white text-foreground"
+              >
+                <IconLogout className="h-5 w-5" />
+              </button>
+            </form>
             <MobileNav
               nav={NAV}
               isAdmin={user.role === "ADMIN"}
