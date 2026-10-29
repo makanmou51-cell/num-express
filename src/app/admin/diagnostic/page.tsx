@@ -10,9 +10,6 @@ import {
   inspectCatalogStrategies,
 } from "@/lib/onlinesim/probe";
 import { usingOnlineSim, usingHeroSms } from "@/lib/grizzly/catalog";
-import { usingAcckitOtp } from "@/lib/acckit/otp-catalog";
-import { acckit } from "@/lib/acckit/client";
-import { otpCountries } from "@/lib/acckit/otp";
 import { usingSms1001 } from "@/lib/sms1001/catalog";
 import { pays as sms1001Pays, solde as sms1001Solde } from "@/lib/sms1001/client";
 import { Sms1001Panel } from "./sms1001-panel";
@@ -41,33 +38,27 @@ async function safe<T>(
    correct (le solde affiché était bien celui d'HeroSMS). */
 const PROVIDER_LABEL = usingSms1001
   ? "1001SMS"
-  : usingAcckitOtp
-    ? "AccKit"
-    : usingOnlineSim
-      ? "OnlineSim"
-      : usingHeroSms
-        ? "HeroSMS"
-        : "Grizzly SMS";
+  : usingOnlineSim
+    ? "OnlineSim"
+    : usingHeroSms
+      ? "HeroSMS"
+      : "Grizzly SMS";
 const PROVIDER_BASE_URL = usingSms1001
   ? env.sms1001.baseUrl
-  : usingAcckitOtp
-    ? env.acckit.baseUrl
-    : usingHeroSms
-      ? env.heroSms.baseUrl
-      : env.grizzly.baseUrl;
+  : usingHeroSms
+    ? env.heroSms.baseUrl
+    : env.grizzly.baseUrl;
 const PROVIDER_CURRENCY = usingSms1001
   ? "USD"
-  : usingAcckitOtp
-    ? "VND"
-    : usingHeroSms
-      ? env.heroSms.currency
-      : env.grizzly.currency;
+  : usingHeroSms
+    ? env.heroSms.currency
+    : env.grizzly.currency;
 
 /* Les panneaux HeroSMS/Grizzly n'ont de sens que sous ces fournisseurs-là.
-   Affichés sous AccKit ou 1001SMS, ils remplissent la page de « fetch
-   failed » — le domaine HeroSMS n'existe plus depuis le 18 octobre — et
-   laissent croire à une panne de notre côté. */
-const PANNEAUX_SMS_ACTIVATE = !usingAcckitOtp && !usingSms1001;
+   Affichés sous 1001SMS, ils remplissent la page de « fetch failed » — le
+   domaine HeroSMS n'existe plus depuis le 18 octobre — et laissent croire à
+   une panne de notre côté. */
+const PANNEAUX_SMS_ACTIVATE = !usingSms1001;
 
 export default async function GrizzlyDiagnosticPage() {
   const [settings, balance, countries, catalog, active, os, strategies] =
@@ -75,26 +66,17 @@ export default async function GrizzlyDiagnosticPage() {
       getSettings(),
       /* Le solde doit venir du fournisseur ACTIF. La page interrogeait
          toujours grizzly.getBalance(), qui retombe sur Grizzly des que le
-         fournisseur n est ni HeroSMS ni OnlineSim : avec AccKit actif, elle
-         affichait le solde d un compte Grizzly inutilise — 0,41 USD — en
-         laissant croire que les ventes allaient s arreter. */
+         fournisseur n est ni HeroSMS ni OnlineSim : elle affichait alors le
+         solde d un compte Grizzly inutilise — 0,41 USD — en laissant croire
+         que les ventes allaient s arreter. */
       safe(async () =>
-        usingSms1001
-          ? (await sms1001Solde()).balance
-          : usingAcckitOtp
-            ? acckit.balance()
-            : grizzly.getBalance(),
+        usingSms1001 ? (await sms1001Solde()).balance : grizzly.getBalance(),
       ),
-      /* Sous AccKit, grizzly.getCountries() renvoyait les 206 pays d un
-         fournisseur qu on n utilise pas. On interroge celui qui sert. */
+      /* Meme raison : on interroge le fournisseur qui sert vraiment. */
       safe(async () =>
         usingSms1001
           ? Object.fromEntries((await sms1001Pays()).map((c) => [c.slug, c.name]))
-          : usingAcckitOtp
-            ? Object.fromEntries(
-                (await otpCountries()).map((c) => [c.country, c.name]),
-              )
-            : grizzly.getCountries(),
+          : grizzly.getCountries(),
       ),
       safe(() => getCatalogForService("wa")),
       /* Ni AccKit ni 1001SMS n ont d equivalent « activations en cours » :
@@ -140,27 +122,12 @@ export default async function GrizzlyDiagnosticPage() {
                     F CFA, la monnaie dans laquelle on vend, puis l equivalent
                     en dollars pour comparer aux autres fournisseurs, et le
                     montant brut du fournisseur en dessous. */}
-                {usingAcckitOtp ? (
-                  <>
-                    <p className="mt-1 text-2xl font-bold">
-                      {formatXof(Math.round(balance.value / env.acckit.vndPerXof))}
-                    </p>
-                    <p className="mt-0.5 text-sm text-muted">
-                      soit{" "}
-                      {(
-                        balance.value /
-                        env.acckit.vndPerXof /
-                        settings.fxToXof
-                      ).toFixed(2)}{" "}
-                      USD · {balance.value.toLocaleString("fr-FR")} VND chez
-                      AccKit
-                    </p>
-                  </>
-                ) : (
-                  <p className="mt-1 text-2xl font-bold">
-                    {balance.value.toFixed(2)} {PROVIDER_CURRENCY}
-                  </p>
-                )}
+                <p className="mt-1 text-2xl font-bold">
+                  {balance.value.toFixed(2)} {PROVIDER_CURRENCY}
+                </p>
+                <p className="mt-0.5 text-sm text-muted">
+                  soit {formatXof(Math.round(balance.value * settings.fxToXof))}
+                </p>
               </>
             ) : (
               <p className="mt-1 text-sm text-red-600">{balance.error}</p>
@@ -170,18 +137,9 @@ export default async function GrizzlyDiagnosticPage() {
         </div>
         {balance.ok && (
           <p className="mt-2 text-xs text-muted">
-            {usingAcckitOtp ? (
-              <>
-                Conversion : {env.acckit.vndPerXof} VND = 1 F CFA · bénéfice
-                fixe +{formatXof(env.acckit.profitXof)} par numéro
-              </>
-            ) : (
-              <>
-                Conversion : 1 {env.grizzly.currency} = {settings.fxToXof} F CFA
-                · bénéfice +{settings.tier1ProfitXof}/{settings.tier2ProfitXof}/
-                {settings.tier3ProfitXof} F CFA selon la tranche de coût
-              </>
-            )}
+            Conversion : 1 {PROVIDER_CURRENCY} = {settings.fxToXof} F CFA ·
+            bénéfice +{settings.tier1ProfitXof}/{settings.tier2ProfitXof}/
+            {settings.tier3ProfitXof} F CFA selon la tranche de coût
           </p>
         )}
       </Card>
@@ -284,7 +242,7 @@ export default async function GrizzlyDiagnosticPage() {
       {/* Résumé des appels */}
       <div className="grid gap-4 sm:grid-cols-3">
         <CheckCard
-          title={usingAcckitOtp ? "Pays du fournisseur" : "getCountries"}
+          title={usingSms1001 ? "Pays du fournisseur" : "getCountries"}
           ok={countries.ok}
           detail={
             countries.ok
@@ -301,7 +259,7 @@ export default async function GrizzlyDiagnosticPage() {
         />
         <CheckCard
           title={
-            usingAcckitOtp ? "Activations en cours" : "getActiveActivations"
+            usingSms1001 ? "Activations en cours" : "getActiveActivations"
           }
           ok={active.ok}
           detail={active.ok ? `${active.value.length} en cours` : active.error}

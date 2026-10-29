@@ -14,11 +14,6 @@ import { env } from "@/lib/env";
 import { ONLINESIM_SERVICE_SLUG } from "@/lib/onlinesim/client";
 import { getOnlineSimOffers, getOnlineSimOffer } from "@/lib/onlinesim/catalog";
 import {
-  usingAcckitOtp,
-  getAcckitCatalog,
-  getAcckitOffer,
-} from "@/lib/acckit/otp-catalog";
-import {
   usingSms1001,
   getSms1001Catalog,
   getSms1001Offer,
@@ -425,7 +420,6 @@ export async function getCatalogForService(
   serviceCode: string,
 ): Promise<CatalogOffer[]> {
   if (usingSms1001) return getSms1001Catalog(serviceCode);
-  if (usingAcckitOtp) return getAcckitCatalog(serviceCode);
   if (usingHeroSms) return heroSmsCatalog(serviceCode);
   if (usingOnlineSim) return onlineSimCatalog(serviceCode);
   const [prices, countries, settings] = await Promise.all([
@@ -479,7 +473,6 @@ export async function getOffer(
   countryCode: string,
 ): Promise<CatalogOffer | null> {
   if (usingSms1001) return getSms1001Offer(serviceCode, countryCode);
-  if (usingAcckitOtp) return getAcckitOffer(serviceCode, countryCode);
   if (usingHeroSms) return heroSmsOffer(serviceCode, countryCode);
   if (usingOnlineSim) {
     const slug = ONLINESIM_SERVICE_SLUG[serviceCode] ?? serviceCode;

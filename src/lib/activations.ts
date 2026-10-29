@@ -15,12 +15,6 @@ import {
   ONLINESIM_SERVICE_SLUG,
 } from "@/lib/onlinesim/client";
 import { env } from "@/lib/env";
-import { otpBuy, otpCheck, otpCancel } from "@/lib/acckit/otp";
-import { AccKitError } from "@/lib/acckit/client";
-import {
-  ACCKIT_SERVICE_SLUG,
-  usingAcckitOtp,
-} from "@/lib/acckit/otp-catalog";
 import {
   annuler as sms1001Annuler,
   codeRecu as sms1001CodeRecu,
@@ -44,7 +38,7 @@ import type { Activation } from "@/generated/prisma/client";
 const ACTIVATION_TTL_MIN =
   env.activationTtlMin > 0
     ? env.activationTtlMin
-    : usingOnlineSim || usingAcckitOtp || usingSms1001
+    : usingOnlineSim || usingSms1001
       ? 15
       : 20;
 
@@ -112,55 +106,6 @@ async function buyFromOnlineSim(
   }
   // Numéro pas encore visible : on garde l'opération, le polling le remplira.
   return { activationId: tzid, phoneNumber: "" };
-}
-
-/**
- * Achat AccKit : on IMPOSE l'opérateur de la ligne serveur choisie par
- * getAcckitOffer (sinon AccKit sert au hasard, y compris les serveurs non
- * prouvés). /buy renvoie directement le numéro et son expiration réelle
- * (expires_ts) : c'est elle qui fait foi, pas notre TTL calculé — AccKit
- * rembourse automatiquement à 100 % passé cette date.
- */
-async function buyFromAcckit(
-  serviceCode: string,
-  countryCode: string,
-  offer: CatalogOffer,
-): Promise<{
-  activationId: string;
-  phoneNumber: string;
-  expiresAt: Date;
-  operator: string;
-}> {
-  if (!offer.providerId) {
-    throw new PurchaseError(
-      "UNAVAILABLE",
-      "Cette offre n'est plus disponible. Réessayez avec un autre pays.",
-    );
-  }
-  const order = await otpBuy(
-    countryCode,
-    ACCKIT_SERVICE_SLUG[serviceCode] ?? serviceCode,
-    offer.providerId,
-  );
-  // Commande créée SANS numéro : on annule aussitôt pour récupérer les fonds
-  // côté fournisseur, puis on renvoie le client vers un autre pays.
-  if (!order.phone) {
-    try {
-      await otpCancel(order.id);
-    } catch {
-      /* best effort : l'auto-remboursement à expires_ts fera le reste */
-    }
-    throw new PurchaseError(
-      "UNAVAILABLE",
-      "Cette offre n'est plus disponible. Réessayez avec un autre pays.",
-    );
-  }
-  return {
-    activationId: String(order.id),
-    phoneNumber: order.phone,
-    expiresAt: new Date(order.expires_ts * 1000),
-    operator: offer.providerId,
-  };
 }
 
 /**
@@ -306,17 +251,12 @@ export async function purchaseNumber(
    *  l'activation : sans ça, impossible de vérifier si forcer un opérateur
    *  sert à quelque chose — c'est ce qui a manqué en septembre. */
   let operateurObtenu: string | undefined;
-  /** Expiration réelle renvoyée par AccKit (expires_ts) : elle fait foi —
-   *  notre TTL calculé n'est qu'un repli pour les autres fournisseurs. */
+  /** Expiration réelle renvoyée par le fournisseur : elle fait foi — notre
+   *  TTL calculé n'est qu'un repli. */
   let expiryFromProvider: Date | undefined;
   try {
     if (usingSms1001) {
       const b = await buyFromSms1001(serviceCode, countryCode, offer);
-      acquired = { activationId: b.activationId, phoneNumber: b.phoneNumber };
-      operateurObtenu = b.operator;
-      expiryFromProvider = b.expiresAt;
-    } else if (usingAcckitOtp) {
-      const b = await buyFromAcckit(serviceCode, countryCode, offer);
       acquired = { activationId: b.activationId, phoneNumber: b.phoneNumber };
       operateurObtenu = b.operator;
       expiryFromProvider = b.expiresAt;
@@ -439,33 +379,6 @@ export async function purchaseNumber(
       }
       throw new PurchaseError("PROVIDER", e.message);
     }
-    if (e instanceof AccKitError) {
-      if (e.code === "SOLD_OUT") {
-        throw new PurchaseError(
-          "UNAVAILABLE",
-          "Stock épuisé sur ce pays. Essayez un autre pays.",
-        );
-      }
-      if (e.code === "NEED_DEPOSIT") {
-        // C'est NOTRE solde AccKit qui est vide — le client n'y peut rien.
-        console.error(
-          "[acckit] SOLDE FOURNISSEUR ÉPUISÉ — recharger acckit.com !",
-        );
-        throw new PurchaseError(
-          "PROVIDER",
-          "Service momentanément indisponible. Réessayez plus tard.",
-        );
-      }
-      if (e.code === "TIMEOUT" || e.code === "NETWORK") {
-        // État inconnu côté fournisseur : le client n'a PAS été débité (le
-        // débit n'a lieu qu'après un achat confirmé). Message rassurant.
-        throw new PurchaseError(
-          "PROVIDER",
-          "Le fournisseur a mis trop de temps à répondre. Vous n'avez pas été débité — réessayez dans quelques minutes.",
-        );
-      }
-      throw new PurchaseError("PROVIDER", e.message);
-    }
     if (e instanceof GrizzlyError) {
       // Prix changé ou stock épuisé entre la consultation et l'achat :
       // c'est une « offre indisponible », pas une panne fournisseur.
@@ -481,9 +394,9 @@ export async function purchaseNumber(
   // (statut 1). Sans cet appel l'activation reste en attente côté fournisseur
   // et le code peut tarder à être acheminé. Best-effort : un échec ici ne doit
   // pas faire perdre le numéro déjà acheté.
-  // (AccKit et 1001SMS : pas de statut à signaler — le numéro attend le SMS
-  // dès la commande.)
-  if (!usingAcckitOtp && !usingSms1001) {
+  // (1001SMS : pas de statut à signaler — le numéro attend le SMS dès la
+  // commande.)
+  if (!usingSms1001) {
     try {
       await grizzly.setStatus(acquired.activationId, SET_STATUS.READY);
     } catch (e) {
@@ -535,12 +448,10 @@ export async function purchaseNumber(
     return activation;
   } catch (e) {
     // Échec du débit (course sur le solde…) : libérer le numéro chez le
-    // fournisseur qui l'a vendu (AccKit rembourse alors immédiatement).
+    // fournisseur qui l'a vendu (1001SMS rembourse alors immédiatement).
     try {
       if (usingSms1001) {
         await sms1001Annuler(acquired.activationId);
-      } else if (usingAcckitOtp) {
-        await otpCancel(Number(acquired.activationId));
       } else {
         await grizzly.cancel(acquired.activationId);
       }
@@ -757,64 +668,6 @@ export async function refreshActivation(
     return activation;
   }
 
-  // ── AccKit : /check donne le statut (WAITING / RECEIVED / REFUNDED) ──
-  if (usingAcckitOtp) {
-    let st;
-    try {
-      st = await otpCheck(Number(activation.providerActivationId));
-    } catch (e) {
-      // Commande inconnue côté AccKit ET délai dépassé : terminal, on rembourse.
-      if (
-        e instanceof AccKitError &&
-        e.message.includes("Order not found") &&
-        activation.expiresAt &&
-        activation.expiresAt < new Date()
-      ) {
-        await refundActivation(activation, "EXPIRED");
-        return prisma.activation.findUnique({ where: { id: activation.id } });
-      }
-      return activation; // transitoire : on réessaiera au prochain poll
-    }
-
-    // Le numéro peut n'arriver qu'après l'achat : on le complète.
-    if (st.phone && !activation.phoneNumber) {
-      await prisma.activation.update({
-        where: { id: activation.id },
-        data: { phoneNumber: st.phone },
-      });
-    }
-
-    if (st.status === "RECEIVED" && st.code) {
-      const updated = await prisma.activation.update({
-        where: { id: activation.id },
-        data: { status: "RECEIVED", smsCode: st.code, smsText: st.text },
-      });
-      notifyCodeReceived(activation.userId, st.code, activation.id);
-      // RECEIVED est final chez AccKit : rien à clore. Commission seulement
-      // maintenant (état non remboursable), idempotente, best-effort.
-      payReferralCommission(
-        activation.userId,
-        activation.id,
-        activation.priceXof,
-      ).catch(() => {});
-      return updated;
-    }
-
-    if (st.status === "REFUNDED") {
-      // AccKit a remboursé côté fournisseur (aucun code avant expires_ts) :
-      // on rembourse le client de la même chose.
-      await refundActivation(activation, "REFUNDED");
-      return prisma.activation.findUnique({ where: { id: activation.id } });
-    }
-
-    // Délai dépassé sans code : AccKit rembourse automatiquement côté
-    // fournisseur — on libère le solde du client sans attendre le poll suivant.
-    if (activation.expiresAt && activation.expiresAt < new Date()) {
-      await refundActivation(activation, "EXPIRED");
-      return prisma.activation.findUnique({ where: { id: activation.id } });
-    }
-    return activation;
-  }
 
   let status;
   try {
@@ -942,20 +795,6 @@ export async function cancelActivation(
     return { ok: true };
   }
 
-  if (usingAcckitOtp) {
-    try {
-      await otpCancel(Number(activation.providerActivationId));
-    } catch (e) {
-      // Code déjà reçu entre-temps : le client a eu ce qu'il a payé.
-      if (e instanceof AccKitError && e.message.includes("already received")) {
-        return { ok: false, message: "Code déjà reçu — annulation impossible." };
-      }
-      return { ok: false, message: "Annulation refusée par le fournisseur." };
-    }
-    await refundActivation(activation, "CANCELLED");
-    return { ok: true };
-  }
-
   try {
     await grizzly.cancel(activation.providerActivationId);
   } catch (e) {
@@ -993,9 +832,9 @@ export async function requestNewCode(
   }
 
   try {
-    if (usingAcckitOtp || usingSms1001) {
-      // Ni AccKit ni 1001SMS n'ont d'endpoint de renvoi : le client redemande
-      // le code depuis le service cible (WhatsApp…), le numéro reste le même.
+    if (usingSms1001) {
+      // 1001SMS n'a pas d'endpoint de renvoi : le client redemande le code
+      // depuis le service cible (WhatsApp…), le numéro reste le même.
       return {
         ok: false,
         message:
