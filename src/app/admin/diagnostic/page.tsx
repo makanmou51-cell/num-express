@@ -12,6 +12,7 @@ import {
 import { usingOnlineSim, usingHeroSms } from "@/lib/grizzly/catalog";
 import { usingAcckitOtp } from "@/lib/acckit/otp-catalog";
 import { acckit } from "@/lib/acckit/client";
+import { otpCountries } from "@/lib/acckit/otp";
 import { Suspense } from "react";
 import { RentalsProbe } from "./rentals-probe";
 import { RestApiProbe } from "./rest-api-probe";
@@ -63,9 +64,21 @@ export default async function GrizzlyDiagnosticPage() {
          affichait le solde d un compte Grizzly inutilise — 0,41 USD — en
          laissant croire que les ventes allaient s arreter. */
       safe(() => (usingAcckitOtp ? acckit.balance() : grizzly.getBalance())),
-      safe(() => grizzly.getCountries()),
+      /* Sous AccKit, grizzly.getCountries() renvoyait les 206 pays d un
+         fournisseur qu on n utilise pas. On interroge celui qui sert. */
+      safe(async () =>
+        usingAcckitOtp
+          ? Object.fromEntries(
+              (await otpCountries()).map((c) => [c.country, c.name]),
+            )
+          : grizzly.getCountries(),
+      ),
       safe(() => getCatalogForService("wa")),
-      safe(() => grizzly.getActiveActivations()),
+      /* AccKit n a pas d equivalent « activations en cours » : on n affiche
+         donc rien plutot qu un chiffre venu d ailleurs. */
+      safe(async () =>
+        usingAcckitOtp ? [] : await grizzly.getActiveActivations(),
+      ),
       safe(() => inspectOnlineSim(49)),
       safe(() => inspectCatalogStrategies()),
     ]);
@@ -98,9 +111,34 @@ export default async function GrizzlyDiagnosticPage() {
               Solde fournisseur ({PROVIDER_LABEL})
             </p>
             {balance.ok ? (
-              <p className="mt-1 text-2xl font-bold">
-                {balance.value.toFixed(2)} {PROVIDER_CURRENCY}
-              </p>
+              <>
+                {/* AccKit facture en dongs vietnamiens. « 171 015 VND » ne dit
+                    rien a personne ici : on affiche donc d abord le montant en
+                    F CFA, la monnaie dans laquelle on vend, puis l equivalent
+                    en dollars pour comparer aux autres fournisseurs, et le
+                    montant brut du fournisseur en dessous. */}
+                {usingAcckitOtp ? (
+                  <>
+                    <p className="mt-1 text-2xl font-bold">
+                      {formatXof(Math.round(balance.value / env.acckit.vndPerXof))}
+                    </p>
+                    <p className="mt-0.5 text-sm text-muted">
+                      soit{" "}
+                      {(
+                        balance.value /
+                        env.acckit.vndPerXof /
+                        settings.fxToXof
+                      ).toFixed(2)}{" "}
+                      USD · {balance.value.toLocaleString("fr-FR")} VND chez
+                      AccKit
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-1 text-2xl font-bold">
+                    {balance.value.toFixed(2)} {PROVIDER_CURRENCY}
+                  </p>
+                )}
+              </>
             ) : (
               <p className="mt-1 text-sm text-red-600">{balance.error}</p>
             )}
@@ -109,9 +147,18 @@ export default async function GrizzlyDiagnosticPage() {
         </div>
         {balance.ok && (
           <p className="mt-2 text-xs text-muted">
-            Conversion : 1 {env.grizzly.currency} = {settings.fxToXof} F CFA ·
-            bénéfice +{settings.tier1ProfitXof}/{settings.tier2ProfitXof}/
-            {settings.tier3ProfitXof} F CFA selon la tranche de coût
+            {usingAcckitOtp ? (
+              <>
+                Conversion : {env.acckit.vndPerXof} VND = 1 F CFA · bénéfice
+                fixe +{formatXof(env.acckit.profitXof)} par numéro
+              </>
+            ) : (
+              <>
+                Conversion : 1 {env.grizzly.currency} = {settings.fxToXof} F CFA
+                · bénéfice +{settings.tier1ProfitXof}/{settings.tier2ProfitXof}/
+                {settings.tier3ProfitXof} F CFA selon la tranche de coût
+              </>
+            )}
           </p>
         )}
       </Card>
@@ -200,7 +247,7 @@ export default async function GrizzlyDiagnosticPage() {
       {/* Résumé des appels */}
       <div className="grid gap-4 sm:grid-cols-3">
         <CheckCard
-          title="getCountries"
+          title={usingAcckitOtp ? "Pays du fournisseur" : "getCountries"}
           ok={countries.ok}
           detail={
             countries.ok
@@ -209,14 +256,16 @@ export default async function GrizzlyDiagnosticPage() {
           }
         />
         <CheckCard
-          title={`Catalogue WhatsApp (${usingOnlineSim ? "OnlineSim" : "Grizzly"})`}
+          title={`Catalogue WhatsApp (${PROVIDER_LABEL})`}
           ok={catalog.ok}
           detail={
             catalog.ok ? `${catalog.value.length} pays dispo` : catalog.error
           }
         />
         <CheckCard
-          title="getActiveActivations"
+          title={
+            usingAcckitOtp ? "Activations en cours" : "getActiveActivations"
+          }
           ok={active.ok}
           detail={active.ok ? `${active.value.length} en cours` : active.error}
         />
