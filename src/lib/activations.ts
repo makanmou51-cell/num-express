@@ -169,9 +169,27 @@ async function buyFromAcckit(
  * format « MAIN:Charlie » par `getSms1001Offer`, qui a choisi la ligne sur
  * les taux réellement mesurés.
  *
- * La commande renvoie directement le numéro. Si elle revient SANS numéro, on
- * annule aussitôt pour récupérer les fonds côté fournisseur — sans quoi on
- * paie un numéro que le client n'aura jamais vu.
+ * ── LE PRIX ANNONCÉ N'ENGAGE PAS 1001SMS ────────────────────────────────
+ * Deux achats réels le 29 octobre, même pays, même service, même opérateur
+ * imposé (TikTok / Allemagne / MAIN:Charlie), à UNE MINUTE d'intervalle :
+ *
+ *     12 h 29  facturé 0,31 $   <- le tarif annoncé
+ *     12 h 30  facturé 2,11 $   <- sept fois plus
+ *
+ * Les deux réponses annonçaient pourtant `operatorName: "Charlie"`. Quand le
+ * pool demandé se vide, ils servent un pool plus cher sous la même étiquette.
+ * Leur `/activations/order` n'accepte AUCUN plafond de prix — contrairement
+ * au `maxPrice` de Grizzly.
+ *
+ * Sans garde-fou, un client paierait 2 750 F pour un numéro qui nous en
+ * coûterait 1 308 : la marge tomberait de 2 500 F à 1 442 F sur un pays bon
+ * marché, et deviendrait NÉGATIVE sur un pays cher.
+ *
+ * Le seul contrôle possible est donc a posteriori : la commande dit ce
+ * qu'elle a coûté, on compare, et au-delà du dépassement toléré on rend le
+ * numéro. L'annulation est souvent refusée pendant une à deux minutes — dans
+ * ce cas leur remboursement automatique à l'expiration fait le travail. On
+ * perd une vente ; on ne vend jamais à perte.
  */
 async function buyFromSms1001(
   serviceCode: string,
@@ -197,16 +215,42 @@ async function buyFromSms1001(
     operator,
   );
 
-  if (!ordre.phone) {
+  /** Rend le numéro au fournisseur et fabrique l'erreur à lever. */
+  const rendreLeNumero = async (
+    journal: string,
+    message: string,
+  ): Promise<PurchaseError> => {
+    console.error(`[1001sms] ${journal}`);
     try {
       await sms1001Annuler(ordre.id);
     } catch {
-      /* best effort : leur remboursement automatique prendra le relais */
+      /* Refus fréquent dans les deux premières minutes : leur remboursement
+         automatique à l'expiration prendra le relais. */
     }
-    throw new PurchaseError(
-      "UNAVAILABLE",
+    return new PurchaseError("UNAVAILABLE", message);
+  };
+
+  if (!ordre.phone) {
+    throw await rendreLeNumero(
+      `commande ${ordre.id} sans numéro — annulation`,
       "Le fournisseur n'a pas pu fournir de numéro. Essayez un autre pays.",
     );
+  }
+
+  /* Le dépassement de prix, en F CFA : c'est la marge qu'on accepte de
+     perdre. Au-delà, on rend le numéro plutôt que de vendre à perte. */
+  if (ordre.prixPaye !== undefined && offer.rawCost > 0) {
+    const reglages = await getSettings();
+    const depassementXof = Math.round(
+      (ordre.prixPaye - offer.rawCost) * reglages.fxToXof,
+    );
+    if (depassementXof > env.sms1001.maxDepassementXof) {
+      throw await rendreLeNumero(
+        `commande ${ordre.id} facturée ${ordre.prixPaye} $ au lieu de ${offer.rawCost} $ ` +
+          `(+${depassementXof} F CFA, plafond ${env.sms1001.maxDepassementXof}) — annulation`,
+        "Le prix a changé chez le fournisseur. Réessayez — vous n'avez pas été débité.",
+      );
+    }
   }
 
   return {

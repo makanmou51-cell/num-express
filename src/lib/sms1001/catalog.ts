@@ -129,9 +129,13 @@ const NOMS_FR: Record<string, string> = {
    Ce que la règle accepte sciemment : une ligne mesurée bonne l'emporte même
    si elle coûte plus cher qu'une ligne jamais testée. C'est tenable parce que
    la marge est FIXE (2 500 F par numéro, quel que soit le coût) — un pays
-   cher ne rapporte pas moins — et parce que 1001SMS rembourse à 100 % une
-   commande expirée sans SMS. Cette seconde hypothèse n'a pas encore été
-   vérifiée par un achat réel : à confirmer dès la première vente.
+   cher ne rapporte pas moins — et parce que 1001SMS rembourse intégralement
+   une commande sans SMS. Vérifié le 29 octobre sur deux achats réels :
+   « Full refund - No SMS received », 0,31 $ et 2,11 $ recrédités au centime.
+   L'annulation est en revanche REFUSÉE pendant une à deux minutes.
+
+   ATTENTION : le prix annoncé ici n'engage pas 1001SMS. Le contrôle se fait
+   après la commande, dans `buyFromSms1001` — voir son commentaire.
 
    Le pool retenu est enregistré sur chaque vente (colonne `operator`, au
    format « MAIN:Charlie »). C'est ce qui permettra à `operateursEcartes()`

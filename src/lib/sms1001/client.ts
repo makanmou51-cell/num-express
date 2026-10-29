@@ -16,18 +16,19 @@ import { env } from "@/lib/env";
  *     avec prix, stock et opérateurs. AccKit en demandait 194, soit 23 s de
  *     reconstruction du catalogue ; ici c'est une requête.
  *
- * ── Le trou dans leur documentation, et comment on s'en protège ─────────
+ * ── Le trou dans leur documentation, et comment on l'a comblé ───────────
  * Leur spec OpenAPI décrit précisément les requêtes, mais laisse le corps des
- * réponses de commande à `data: {}` — littéralement « un objet ». Aucune
- * indication du nom des champs (`id` ? `orderId` ? `phone` ? `number` ?), ni
- * des valeurs de statut.
+ * réponses de commande à `data: {}` — littéralement « un objet ». Un achat
+ * réel du 29 octobre a livré la forme :
  *
- * Deviner UN jeu de noms et s'y tenir, c'est risquer qu'un achat réel parte
- * en erreur alors que le numéro a été acheté et facturé. On fait donc deux
- * choses : `normaliserOrdre` accepte toutes les graphies plausibles, et le
- * tout PREMIER corps de commande reçu est journalisé en entier. La forme
- * réelle sera donc visible dès la première vente, sans l'avoir payée d'un
- * échec.
+ *     { id, phoneNumber, countryCode, countryName, serviceId, serviceName,
+ *       operatorName, price, status, provider, providerId, expiresAt,
+ *       rentedAt, messages: [] }
+ *
+ * Statuts observés : `RENTED` (en cours) et `REFUNDED` (annulée, remboursée).
+ * `normaliserOrdre` continue d'accepter les autres graphies plausibles — ce
+ * qui n'est pas documenté peut changer sans préavis — et journalise la
+ * première commande de chaque instance, pour qu'une dérive se voie.
  *
  * ── Règle d'or, héritée d'AccKit ────────────────────────────────────────
  * `/activations/order` n'a pas de clé d'idempotence. En cas de timeout ou
@@ -278,11 +279,19 @@ export function tauxMesure(o: Sms1001Operateur): number | undefined {
 export interface Sms1001Ordre {
   id: string;
   phone: string | null;
-  /** Statut brut du fournisseur, tel quel — leur vocabulaire n'est pas documenté. */
+  /** Statut brut du fournisseur. Valeurs observées : RENTED, REFUNDED. */
   statut: string;
   code: string | null;
   texte: string | null;
   expireLe: Date | null;
+  /**
+   * Prix RÉELLEMENT facturé (USD), tel que renvoyé par la commande.
+   *
+   * À ne surtout pas confondre avec le prix annoncé par
+   * `/informative/pricing` : voir `buyFromSms1001`, ils peuvent différer d'un
+   * facteur sept.
+   */
+  prixPaye?: number;
 }
 
 /** Première commande vue : on journalise le corps entier une seule fois. */
@@ -346,6 +355,8 @@ export function normaliserOrdre(brut: unknown): Sms1001Ordre {
     }
   }
 
+  const prix = Number(premier(o, ["price", "amount", "cost", "charged"]));
+
   return {
     id: String(id),
     phone: tel === undefined ? null : String(tel),
@@ -355,6 +366,7 @@ export function normaliserOrdre(brut: unknown): Sms1001Ordre {
     expireLe: lireDate(
       premier(o, ["expiresAt", "expires_at", "expiresAtIso", "expiry", "expiresTs", "expires_ts"]),
     ),
+    prixPaye: Number.isFinite(prix) && prix > 0 ? prix : undefined,
   };
 }
 

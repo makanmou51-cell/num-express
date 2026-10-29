@@ -81,6 +81,12 @@ export const env = {
     // premier enregistrement de l'URL (PUT /webhooks/config). Sans lui le
     // webhook est refusé : on ne crédite pas un code sur parole.
     webhookSecret: str("SMS1001_WEBHOOK_SECRET"),
+    // Dépassement de prix toléré (F CFA) entre le tarif annoncé et le tarif
+    // RÉELLEMENT facturé. Mesuré le 29 octobre : deux achats identiques à une
+    // minute d'écart, 0,31 $ puis 2,11 $ — leur API n'accepte aucun plafond,
+    // le contrôle ne peut donc être qu'a posteriori (voir buyFromSms1001).
+    // 1 200 F laisse au moins 1 300 F de marge sur un bénéfice visé de 2 500.
+    maxDepassementXof: num("SMS1001_MAX_DEPASSEMENT_XOF", 1200),
   },
 
   // ── OnlineSim (fournisseur alternatif, en évaluation) ──
