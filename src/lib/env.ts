@@ -44,7 +44,7 @@ export const env = {
   cronSecret: str("CRON_SECRET"),
   // Durée de validité d'une activation (min). 0 = auto selon le fournisseur :
   // elle DOIT coller à celle du fournisseur, sinon le client attend un numéro
-  // déjà libéré. OnlineSim = 15 min, Grizzly = 20 min.
+  // déjà libéré. OnlineSim = 15 min, AccKit = 15 min (hold), Grizzly = 20 min.
   activationTtlMin: num("ACTIVATION_TTL_MIN", 0),
 
   // ── Connexion Google (OAuth 2.0) ──
@@ -65,7 +65,7 @@ export const env = {
     mock: bool("GRIZZLY_MOCK", false),
   },
 
-  // Fournisseur de numéros actif : grizzly | onlinesim | herosms.
+  // Fournisseur de numéros actif : grizzly | onlinesim | herosms | acckit.
   // Bascule à chaud (variable d'env) pour comparer sans réécrire de code.
   smsProvider: str("SMS_PROVIDER", "grizzly").toLowerCase(),
 

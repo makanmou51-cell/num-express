@@ -13,6 +13,11 @@ import { isoFromName } from "@/lib/grizzly/flags";
 import { env } from "@/lib/env";
 import { ONLINESIM_SERVICE_SLUG } from "@/lib/onlinesim/client";
 import { getOnlineSimOffers, getOnlineSimOffer } from "@/lib/onlinesim/catalog";
+import {
+  usingAcckitOtp,
+  getAcckitCatalog,
+  getAcckitOffer,
+} from "@/lib/acckit/otp-catalog";
 
 /** Codes de services populaires -> libellé affiché. */
 export const SERVICE_LABELS: Record<string, string> = {
@@ -414,6 +419,7 @@ async function heroSmsOffer(
 export async function getCatalogForService(
   serviceCode: string,
 ): Promise<CatalogOffer[]> {
+  if (usingAcckitOtp) return getAcckitCatalog(serviceCode);
   if (usingHeroSms) return heroSmsCatalog(serviceCode);
   if (usingOnlineSim) return onlineSimCatalog(serviceCode);
   const [prices, countries, settings] = await Promise.all([
@@ -466,6 +472,7 @@ export async function getOffer(
   serviceCode: string,
   countryCode: string,
 ): Promise<CatalogOffer | null> {
+  if (usingAcckitOtp) return getAcckitOffer(serviceCode, countryCode);
   if (usingHeroSms) return heroSmsOffer(serviceCode, countryCode);
   if (usingOnlineSim) {
     const slug = ONLINESIM_SERVICE_SLUG[serviceCode] ?? serviceCode;

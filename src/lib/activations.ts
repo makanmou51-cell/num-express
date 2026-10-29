@@ -2,7 +2,12 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { preferredOperators } from "@/lib/grizzly/operators";
 import { grizzly, GrizzlyError, SET_STATUS } from "@/lib/grizzly/client";
-import { getOffer, usingHeroSms, usingOnlineSim } from "@/lib/grizzly/catalog";
+import {
+  getOffer,
+  usingHeroSms,
+  usingOnlineSim,
+  type CatalogOffer,
+} from "@/lib/grizzly/catalog";
 import { getSettings } from "@/lib/settings";
 import {
   onlinesim,
@@ -10,6 +15,12 @@ import {
   ONLINESIM_SERVICE_SLUG,
 } from "@/lib/onlinesim/client";
 import { env } from "@/lib/env";
+import { otpBuy, otpCheck, otpCancel } from "@/lib/acckit/otp";
+import { AccKitError } from "@/lib/acckit/client";
+import {
+  ACCKIT_SERVICE_SLUG,
+  usingAcckitOtp,
+} from "@/lib/acckit/otp-catalog";
 import { applyWalletTx, InsufficientFundsError } from "@/lib/wallet";
 import { payReferralCommission } from "@/lib/affiliate";
 import { pushToUser } from "@/lib/push";
@@ -18,7 +29,11 @@ import type { Activation } from "@/generated/prisma/client";
 // Doit refléter le délai RÉEL du fournisseur actif : afficher plus long
 // ferait patienter le client sur un numéro déjà libéré côté fournisseur.
 const ACTIVATION_TTL_MIN =
-  env.activationTtlMin > 0 ? env.activationTtlMin : usingOnlineSim ? 15 : 20;
+  env.activationTtlMin > 0
+    ? env.activationTtlMin
+    : usingOnlineSim || usingAcckitOtp
+      ? 15
+      : 20;
 
 /** Temps total accordé aux essais par opérateur avant de prendre au hasard. */
 const OPERATOR_TRY_BUDGET_MS = 7_000;
@@ -86,6 +101,55 @@ async function buyFromOnlineSim(
   return { activationId: tzid, phoneNumber: "" };
 }
 
+/**
+ * Achat AccKit : on IMPOSE l'opérateur de la ligne serveur choisie par
+ * getAcckitOffer (sinon AccKit sert au hasard, y compris les serveurs non
+ * prouvés). /buy renvoie directement le numéro et son expiration réelle
+ * (expires_ts) : c'est elle qui fait foi, pas notre TTL calculé — AccKit
+ * rembourse automatiquement à 100 % passé cette date.
+ */
+async function buyFromAcckit(
+  serviceCode: string,
+  countryCode: string,
+  offer: CatalogOffer,
+): Promise<{
+  activationId: string;
+  phoneNumber: string;
+  expiresAt: Date;
+  operator: string;
+}> {
+  if (!offer.providerId) {
+    throw new PurchaseError(
+      "UNAVAILABLE",
+      "Cette offre n'est plus disponible. Réessayez avec un autre pays.",
+    );
+  }
+  const order = await otpBuy(
+    countryCode,
+    ACCKIT_SERVICE_SLUG[serviceCode] ?? serviceCode,
+    offer.providerId,
+  );
+  // Commande créée SANS numéro : on annule aussitôt pour récupérer les fonds
+  // côté fournisseur, puis on renvoie le client vers un autre pays.
+  if (!order.phone) {
+    try {
+      await otpCancel(order.id);
+    } catch {
+      /* best effort : l'auto-remboursement à expires_ts fera le reste */
+    }
+    throw new PurchaseError(
+      "UNAVAILABLE",
+      "Cette offre n'est plus disponible. Réessayez avec un autre pays.",
+    );
+  }
+  return {
+    activationId: String(order.id),
+    phoneNumber: order.phone,
+    expiresAt: new Date(order.expires_ts * 1000),
+    operator: offer.providerId,
+  };
+}
+
 /** Achète un numéro et débite l'utilisateur (atomique). */
 export async function purchaseNumber(
   userId: string,
@@ -135,8 +199,16 @@ export async function purchaseNumber(
    *  l'activation : sans ça, impossible de vérifier si forcer un opérateur
    *  sert à quelque chose — c'est ce qui a manqué en septembre. */
   let operateurObtenu: string | undefined;
+  /** Expiration réelle renvoyée par AccKit (expires_ts) : elle fait foi —
+   *  notre TTL calculé n'est qu'un repli pour les autres fournisseurs. */
+  let expiryFromProvider: Date | undefined;
   try {
-    if (usingOnlineSim) {
+    if (usingAcckitOtp) {
+      const b = await buyFromAcckit(serviceCode, countryCode, offer);
+      acquired = { activationId: b.activationId, phoneNumber: b.phoneNumber };
+      operateurObtenu = b.operator;
+      expiryFromProvider = b.expiresAt;
+    } else if (usingOnlineSim) {
       acquired = await buyFromOnlineSim(serviceCode, countryCode);
     } else {
       /* Grizzly : on IMPOSE le fournisseur premium choisi (providerIds) — PAS
@@ -248,6 +320,33 @@ export async function purchaseNumber(
           : e.message;
       throw new PurchaseError("PROVIDER", friendly);
     }
+    if (e instanceof AccKitError) {
+      if (e.code === "SOLD_OUT") {
+        throw new PurchaseError(
+          "UNAVAILABLE",
+          "Stock épuisé sur ce pays. Essayez un autre pays.",
+        );
+      }
+      if (e.code === "NEED_DEPOSIT") {
+        // C'est NOTRE solde AccKit qui est vide — le client n'y peut rien.
+        console.error(
+          "[acckit] SOLDE FOURNISSEUR ÉPUISÉ — recharger acckit.com !",
+        );
+        throw new PurchaseError(
+          "PROVIDER",
+          "Service momentanément indisponible. Réessayez plus tard.",
+        );
+      }
+      if (e.code === "TIMEOUT" || e.code === "NETWORK") {
+        // État inconnu côté fournisseur : le client n'a PAS été débité (le
+        // débit n'a lieu qu'après un achat confirmé). Message rassurant.
+        throw new PurchaseError(
+          "PROVIDER",
+          "Le fournisseur a mis trop de temps à répondre. Vous n'avez pas été débité — réessayez dans quelques minutes.",
+        );
+      }
+      throw new PurchaseError("PROVIDER", e.message);
+    }
     if (e instanceof GrizzlyError) {
       // Prix changé ou stock épuisé entre la consultation et l'achat :
       // c'est une « offre indisponible », pas une panne fournisseur.
@@ -263,10 +362,13 @@ export async function purchaseNumber(
   // (statut 1). Sans cet appel l'activation reste en attente côté fournisseur
   // et le code peut tarder à être acheminé. Best-effort : un échec ici ne doit
   // pas faire perdre le numéro déjà acheté.
-  try {
-    await grizzly.setStatus(acquired.activationId, SET_STATUS.READY);
-  } catch (e) {
-    console.error("setStatus(READY) échoué:", e);
+  // (AccKit : pas de statut à signaler — le numéro attend le SMS dès le /buy.)
+  if (!usingAcckitOtp) {
+    try {
+      await grizzly.setStatus(acquired.activationId, SET_STATUS.READY);
+    } catch (e) {
+      console.error("setStatus(READY) échoué:", e);
+    }
   }
 
   // 4) Débit + création de l'activation, atomiques.
@@ -290,7 +392,9 @@ export async function purchaseNumber(
              dire la vérité sur ce qui marche. */
           verifyType: modeObtenu === "call" ? "CALL" : "SMS",
           operator: operateurObtenu ?? null,
-          expiresAt: new Date(Date.now() + ACTIVATION_TTL_MIN * 60_000),
+          expiresAt:
+            expiryFromProvider ??
+            new Date(Date.now() + ACTIVATION_TTL_MIN * 60_000),
         },
       });
       await applyWalletTx({
@@ -310,9 +414,14 @@ export async function purchaseNumber(
     // refreshActivation — pour éviter le farming achat/annulation.
     return activation;
   } catch (e) {
-    // Échec du débit (course sur le solde…) : libérer le numéro chez Grizzly.
+    // Échec du débit (course sur le solde…) : libérer le numéro chez le
+    // fournisseur qui l'a vendu (AccKit rembourse alors immédiatement).
     try {
-      await grizzly.cancel(acquired.activationId);
+      if (usingAcckitOtp) {
+        await otpCancel(Number(acquired.activationId));
+      } else {
+        await grizzly.cancel(acquired.activationId);
+      }
     } catch {
       /* best effort */
     }
@@ -457,6 +566,65 @@ export async function refreshActivation(
     return prisma.activation.findUnique({ where: { id: activation.id } });
   }
 
+  // ── AccKit : /check donne le statut (WAITING / RECEIVED / REFUNDED) ──
+  if (usingAcckitOtp) {
+    let st;
+    try {
+      st = await otpCheck(Number(activation.providerActivationId));
+    } catch (e) {
+      // Commande inconnue côté AccKit ET délai dépassé : terminal, on rembourse.
+      if (
+        e instanceof AccKitError &&
+        e.message.includes("Order not found") &&
+        activation.expiresAt &&
+        activation.expiresAt < new Date()
+      ) {
+        await refundActivation(activation, "EXPIRED");
+        return prisma.activation.findUnique({ where: { id: activation.id } });
+      }
+      return activation; // transitoire : on réessaiera au prochain poll
+    }
+
+    // Le numéro peut n'arriver qu'après l'achat : on le complète.
+    if (st.phone && !activation.phoneNumber) {
+      await prisma.activation.update({
+        where: { id: activation.id },
+        data: { phoneNumber: st.phone },
+      });
+    }
+
+    if (st.status === "RECEIVED" && st.code) {
+      const updated = await prisma.activation.update({
+        where: { id: activation.id },
+        data: { status: "RECEIVED", smsCode: st.code, smsText: st.text },
+      });
+      notifyCodeReceived(activation.userId, st.code, activation.id);
+      // RECEIVED est final chez AccKit : rien à clore. Commission seulement
+      // maintenant (état non remboursable), idempotente, best-effort.
+      payReferralCommission(
+        activation.userId,
+        activation.id,
+        activation.priceXof,
+      ).catch(() => {});
+      return updated;
+    }
+
+    if (st.status === "REFUNDED") {
+      // AccKit a remboursé côté fournisseur (aucun code avant expires_ts) :
+      // on rembourse le client de la même chose.
+      await refundActivation(activation, "REFUNDED");
+      return prisma.activation.findUnique({ where: { id: activation.id } });
+    }
+
+    // Délai dépassé sans code : AccKit rembourse automatiquement côté
+    // fournisseur — on libère le solde du client sans attendre le poll suivant.
+    if (activation.expiresAt && activation.expiresAt < new Date()) {
+      await refundActivation(activation, "EXPIRED");
+      return prisma.activation.findUnique({ where: { id: activation.id } });
+    }
+    return activation;
+  }
+
   let status;
   try {
     status = await grizzly.getStatus(activation.providerActivationId);
@@ -570,6 +738,20 @@ export async function cancelActivation(
     return { ok: true };
   }
 
+  if (usingAcckitOtp) {
+    try {
+      await otpCancel(Number(activation.providerActivationId));
+    } catch (e) {
+      // Code déjà reçu entre-temps : le client a eu ce qu'il a payé.
+      if (e instanceof AccKitError && e.message.includes("already received")) {
+        return { ok: false, message: "Code déjà reçu — annulation impossible." };
+      }
+      return { ok: false, message: "Annulation refusée par le fournisseur." };
+    }
+    await refundActivation(activation, "CANCELLED");
+    return { ok: true };
+  }
+
   try {
     await grizzly.cancel(activation.providerActivationId);
   } catch (e) {
@@ -607,6 +789,15 @@ export async function requestNewCode(
   }
 
   try {
+    if (usingAcckitOtp) {
+      // AccKit n'a pas d'endpoint de renvoi : le client redemande le code
+      // depuis le service cible (WhatsApp…), le numéro reste le même.
+      return {
+        ok: false,
+        message:
+          "Renvoyez le code depuis le service (ex. WhatsApp) — le numéro reste actif.",
+      };
+    }
     if (usingOnlineSim) {
       await onlinesim.requestNewCode(activation.providerActivationId);
       return { ok: true };
