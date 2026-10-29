@@ -31,13 +31,6 @@ type Price = {
   suggestDuration?: number;
 };
 
-const DURATIONS = [
-  { hours: 0, label: "20 minutes", tag: "Code unique" },
-  { hours: 24, label: "1 jour", tag: "Numéro dédié" },
-  { hours: 72, label: "3 jours", tag: "Numéro dédié" },
-  { hours: 168, label: "7 jours", tag: "Numéro dédié" },
-  { hours: 720, label: "30 jours", tag: "Numéro dédié" },
-];
 
 /* ─────────────── Icônes (SVG : jamais d'emoji comme icône) ─────────────── */
 
@@ -306,7 +299,6 @@ export function BuyWizard({
   }, [countries, ctryQ, sortBy]);
 
   // Étape 3 — options + prix
-  const [duration, setDuration] = useState(0);
   const [price, setPrice] = useState<Price | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
 
@@ -316,7 +308,7 @@ export function BuyWizard({
     setPriceLoading(true);
     let alive = true;
     fetch(
-      `/api/buy/price?service=${encodeURIComponent(service.code)}&country=${encodeURIComponent(country.code)}&duration=${duration}`,
+      `/api/buy/price?service=${encodeURIComponent(service.code)}&country=${encodeURIComponent(country.code)}&duration=0`,
       { cache: "no-store" },
     )
       .then((r) => r.json())
@@ -326,20 +318,18 @@ export function BuyWizard({
     return () => {
       alive = false;
     };
-  }, [service, country, duration]);
+  }, [service, country]);
 
   const chooseService = (s: Svc) => {
     setService(s);
     setCountry(null);
     setCtryQ("");
     setCtryLimit(8);
-    setDuration(0);
   };
 
   const affordable = price?.priceXof != null && userBalance >= price.priceXof;
   const missing =
     price?.priceXof != null ? Math.max(0, price.priceXof - userBalance) : 0;
-  const isRental = duration > 0;
   const step: 1 | 2 | 3 = !service ? 1 : !country ? 2 : 3;
 
   return (
@@ -484,7 +474,6 @@ export function BuyWizard({
                       type="button"
                       onClick={() => {
                         setCountry(c);
-                        setDuration(0);
                       }}
                       className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-border bg-card px-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 active:bg-primary/10"
                     >
@@ -542,74 +531,6 @@ export function BuyWizard({
           )}
 
           {/* Durée */}
-          <fieldset>
-            <legend className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-              Durée
-            </legend>
-
-            {/* L'argument de la location était affiché APRÈS sélection : le
-                client qui ne cliquait jamais dessus n'apprenait jamais qu'elle
-                existait ni pourquoi la prendre. Il passe avant le choix.
-                Sur WhatsApp il est renforcé : le code n'arrive que dans ~8 %
-                des cas sur un numéro à usage unique, alors qu'un numéro dédié
-                reçoit plusieurs SMS pendant des jours — on peut réessayer. */}
-            <p className="mb-2 rounded-xl border border-primary/25 bg-primary/5 p-3 text-xs text-foreground">
-              <strong>20 minutes</strong> : un seul code, puis le numéro est
-              rendu. <strong className="text-primary">Numéro dédié</strong> : il
-              reste à vous et reçoit plusieurs SMS pendant toute la durée — vous
-              pouvez réessayer autant de fois qu&apos;il faut.
-              {service?.code === "wa" && (
-                <>
-                  {" "}
-                  <strong className="text-accent">
-                    Sur WhatsApp, c&apos;est de loin le plus fiable.
-                  </strong>
-                </>
-              )}
-            </p>
-
-            <div
-              role="radiogroup"
-              aria-label="Durée du numéro"
-              className="grid grid-cols-2 gap-2 sm:grid-cols-3"
-            >
-              {DURATIONS.map((d) => {
-                const on = duration === d.hours;
-                return (
-                  <button
-                    key={d.hours}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => setDuration(d.hours)}
-                    className={`relative min-h-14 rounded-xl border-2 px-3 py-2 text-left transition-colors active:scale-[0.98] ${
-                      on
-                        ? "border-primary bg-primary/10"
-                        : "border-border hover:border-primary/50"
-                    }`}
-                  >
-                    {on && (
-                      <IconCheck className="absolute right-2 top-2 h-3.5 w-3.5 text-primary" />
-                    )}
-                    <span
-                      className={`block text-sm font-bold ${on ? "text-primary" : ""}`}
-                    >
-                      {d.label}
-                    </span>
-                    <span className="block text-xs text-muted">{d.tag}</span>
-                    {/* Une seule option mise en avant, sur le service où elle
-                        change vraiment le résultat. */}
-                    {service?.code === "wa" && d.hours === 24 && (
-                      <span className="mt-1 inline-block rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold text-accent-foreground">
-                        Conseillé
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
-
           {/* ── Prix + action ── */}
           <div className="rounded-2xl border border-border bg-background p-4">
             {priceLoading ? (
@@ -634,24 +555,9 @@ export function BuyWizard({
                       numéro virtuel.
                     </span>
                   </p>
-                  {price.rentalAvailable ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setDuration(price.suggestDuration ?? 24)}
-                        className="min-h-11 w-full rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90 active:scale-[0.98]"
-                      >
-                        Prendre un numéro dédié (1 jour)
-                      </button>
-                      <p className="text-xs text-muted">
-                        Numéro fiable qui reçoit vos SMS pendant 24 h.
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-xs text-muted">
-                      Essayez un autre pays pour ce service.
-                    </p>
-                  )}
+                  <p className="text-xs text-muted">
+                    Essayez un autre pays pour ce service.
+                  </p>
                 </div>
               ) : (
                 <p role="alert" className="text-center text-sm text-muted">
@@ -667,7 +573,7 @@ export function BuyWizard({
                       {formatXof(price.priceXof!)}
                     </p>
                     <p className="text-xs text-muted">
-                      {isRental ? "Location" : "Code unique"} · reçu par SMS
+                      Code unique · reçu par SMS
                     </p>
                   </div>
                   <p className="text-right text-xs text-muted">
@@ -679,50 +585,7 @@ export function BuyWizard({
                 </div>
 
                 {affordable ? (
-                  isRental ? (
-                    <>
-                      {/* La règle de remboursement, AVANT de payer.
-                          HeroSMS l'affiche sur sa propre page d'achat ; nous
-                          la cachions jusqu'au moment de l'annulation, quand
-                          il était trop tard. Un client qui découvre une règle
-                          après avoir payé la vit comme un piège — même quand
-                          elle est honnête. Elle est donc ici, au-dessus du
-                          bouton, pas dans des conditions générales. */}
-                      <div className="mb-3 flex gap-2.5 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                        <IconWarn className="mt-0.5 h-4 w-4 shrink-0" />
-                        <p>
-                          <strong>20 minutes pour annuler.</strong> Si le code
-                          n&apos;arrive pas, annulez dans les 20 minutes et vous
-                          êtes remboursé immédiatement. Passé ce délai, plus de
-                          remboursement possible&nbsp;: le numéro reste à vous
-                          pour toute la durée, et vous pouvez continuer à
-                          demander votre code dessus.
-                        </p>
-                      </div>
-                      <form action={rentAction}>
-                        <input
-                          type="hidden"
-                          name="service"
-                          value={service.code}
-                        />
-                        <input
-                          type="hidden"
-                          name="country"
-                          value={country.code}
-                        />
-                        <input type="hidden" name="duration" value={duration} />
-                        <SubmitButton
-                          variant="accent"
-                          size="lg"
-                          className="w-full"
-                          pendingLabel="Location en cours…"
-                        >
-                          Louer ce numéro
-                        </SubmitButton>
-                      </form>
-                    </>
-                  ) : (
-                    <form action={purchaseAction}>
+                  <form action={purchaseAction}>
                       <input
                         type="hidden"
                         name="service"
@@ -742,7 +605,6 @@ export function BuyWizard({
                         Acheter ce numéro
                       </SubmitButton>
                     </form>
-                  )
                 ) : (
                   <div className="space-y-2" role="alert">
                     <p className="flex items-center gap-2 text-sm font-medium text-warning">

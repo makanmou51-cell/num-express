@@ -226,10 +226,11 @@ function offreDepuisLigne(
 /**
  * Catalogue complet d'un service.
  *
- * ── Un seul appel, et pourquoi ce n'est pas un compromis ────────────────
- * `/informative/pricing?service=whatsapp` rend tous les pays desservis en UNE
- * requête. La tentation était de faire plutôt 86 appels — un par pays — parce
- * que la vue détaillée expose davantage de lignes.
+ * ── Un appel, plus un rattrapage ────────────────────────────────────────
+ * `/informative/pricing?service=whatsapp` rend les pays desservis en UNE
+ * requête — mais s'arrête à 79, par ordre alphabétique (voir le rattrapage
+ * plus bas). La tentation était de faire plutôt 86 appels, un par pays,
+ * parce que la vue détaillée expose davantage de lignes.
  *
  * Mesuré le 29 octobre, ça ne marche pas : leur API accepte TRENTE requêtes
  * puis renvoie 429. Sur 86 appels en lots de 20, 56 échouaient, et le
@@ -254,13 +255,16 @@ function offreDepuisLigne(
  */
 async function construireCatalogue(serviceCode: string): Promise<CatalogOffer[]> {
   const slugService = SMS1001_SERVICE_SLUG[serviceCode] ?? serviceCode;
-  const [lignesPays, reglages] = await Promise.all([
+  const [lignesPays, liste, reglages] = await Promise.all([
     tarifs(slugService),
+    listePays().catch(() => [] as Awaited<ReturnType<typeof listePays>>),
     getSettings(),
   ]);
 
   const out: CatalogOffer[] = [];
+  const vus = new Set<string>();
   for (const p of lignesPays) {
+    vus.add(p.countrySlug);
     const ligne = choisirLigne(p.operators ?? []);
     if (!ligne) continue;
     out.push(
@@ -273,6 +277,44 @@ async function construireCatalogue(serviceCode: string): Promise<CatalogOffer[]>
         reglages,
       ),
     );
+  }
+
+  /* ── Le rattrapage, et pourquoi il est indispensable ───────────────────
+     La vue d'ensemble s'arrête net à 79 pays, par ordre alphabétique : le
+     dernier servi est « Switzerland ». Aucun paramètre ne la prolonge —
+     `limit`, `page` et `offset` renvoient tous exactement les mêmes 79.
+
+     Ce qu'elle coupe n'est pas anodin. Mesuré le 29 octobre, les sept pays
+     perdus avaient TOUS du stock WhatsApp :
+
+         Taiwan, Thailand, Turkey, United Arab Emirates,
+         United Kingdom (19 lignes dès 1,20 $),
+         United States  (17 lignes dès 2,80 $),
+         Vietnam
+
+     Le Royaume-Uni et les États-Unis disparaissaient du catalogue à cause
+     d'une troncature alphabétique. On compare donc la vue d'ensemble à la
+     liste complète des pays et on interroge les absents un par un.
+
+     Le coût reste négligeable : sept appels, là où leur limite de débit en
+     autorise trente. Le plafond protège d'une dérive si leur troncature
+     devait s'aggraver — mieux vaut un catalogue incomplet qu'un catalogue
+     vide, tronqué au hasard par des 429. */
+  const manquants = liste.filter((c) => !vus.has(c.slug)).slice(0, 20);
+  if (manquants.length) {
+    const blocs = await Promise.all(
+      manquants.map(async (c): Promise<CatalogOffer | null> => {
+        try {
+          const ligne = choisirLigne(await detailPays(c.slug, slugService));
+          return ligne
+            ? offreDepuisLigne(serviceCode, c.slug, c.name, c.code || null, ligne, reglages)
+            : null;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    for (const o of blocs) if (o) out.push(o);
   }
 
   out.sort((a, b) => a.priceXof - b.priceXof);
