@@ -65,9 +65,23 @@ export const env = {
     mock: bool("GRIZZLY_MOCK", false),
   },
 
-  // Fournisseur de numéros actif : grizzly | onlinesim | herosms | acckit.
+  // Fournisseur de numéros actif :
+  //   grizzly | onlinesim | herosms | acckit | sms1001
   // Bascule à chaud (variable d'env) pour comparer sans réécrire de code.
   smsProvider: str("SMS_PROVIDER", "grizzly").toLowerCase(),
+
+  // ── 1001SMS (API REST revendeur) ──
+  // Seul fournisseur branché à ce jour qui POUSSE le code par webhook signé
+  // au lieu d'obliger à l'interroger en boucle. Facture en USD, comme Grizzly
+  // et HeroSMS : le taux `pricing.fxToXof` s'applique tel quel.
+  sms1001: {
+    apiKey: str("SMS1001_API_KEY"),
+    baseUrl: str("SMS1001_BASE_URL", "https://www.1001sms.com/api/v1"),
+    // Secret de signature du webhook. 1001SMS ne le donne QU'UNE FOIS, au
+    // premier enregistrement de l'URL (PUT /webhooks/config). Sans lui le
+    // webhook est refusé : on ne crédite pas un code sur parole.
+    webhookSecret: str("SMS1001_WEBHOOK_SECRET"),
+  },
 
   // ── OnlineSim (fournisseur alternatif, en évaluation) ──
   onlinesim: {

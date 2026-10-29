@@ -18,6 +18,11 @@ import {
   getAcckitCatalog,
   getAcckitOffer,
 } from "@/lib/acckit/otp-catalog";
+import {
+  usingSms1001,
+  getSms1001Catalog,
+  getSms1001Offer,
+} from "@/lib/sms1001/catalog";
 
 /** Codes de services populaires -> libellé affiché. */
 export const SERVICE_LABELS: Record<string, string> = {
@@ -419,6 +424,7 @@ async function heroSmsOffer(
 export async function getCatalogForService(
   serviceCode: string,
 ): Promise<CatalogOffer[]> {
+  if (usingSms1001) return getSms1001Catalog(serviceCode);
   if (usingAcckitOtp) return getAcckitCatalog(serviceCode);
   if (usingHeroSms) return heroSmsCatalog(serviceCode);
   if (usingOnlineSim) return onlineSimCatalog(serviceCode);
@@ -472,6 +478,7 @@ export async function getOffer(
   serviceCode: string,
   countryCode: string,
 ): Promise<CatalogOffer | null> {
+  if (usingSms1001) return getSms1001Offer(serviceCode, countryCode);
   if (usingAcckitOtp) return getAcckitOffer(serviceCode, countryCode);
   if (usingHeroSms) return heroSmsOffer(serviceCode, countryCode);
   if (usingOnlineSim) {

@@ -75,38 +75,6 @@ function IconCheck({ className = "" }: { className?: string }) {
     </svg>
   );
 }
-function IconSms({ className = "" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={`${svg} ${className}`}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-function IconCall({ className = "" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={`${svg} ${className}`}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l4 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" />
-    </svg>
-  );
-}
 function IconGlobe({ className = "" }: { className?: string }) {
   return (
     <svg
@@ -338,7 +306,6 @@ export function BuyWizard({
   }, [countries, ctryQ, sortBy]);
 
   // Étape 3 — options + prix
-  const [verify, setVerify] = useState<"SMS" | "CALL">("SMS");
   const [duration, setDuration] = useState(0);
   const [price, setPrice] = useState<Price | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
@@ -574,49 +541,6 @@ export function BuyWizard({
             <WhatsAppGuide countryName={country.name} />
           )}
 
-          {/* Type de vérification — vrai groupe de boutons radio */}
-          <fieldset>
-            <legend className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-              Recevoir le code par
-            </legend>
-            <div
-              role="radiogroup"
-              aria-label="Type de vérification"
-              className="flex gap-2"
-            >
-              {(
-                [
-                  { v: "SMS", label: "SMS", Icon: IconSms },
-                  { v: "CALL", label: "Appel", Icon: IconCall },
-                ] as const
-              ).map(({ v, label, Icon }) => {
-                const on = verify === v;
-                return (
-                  <button
-                    key={v}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => setVerify(v)}
-                    className={`flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border-2 px-3 text-sm font-semibold transition-colors active:scale-[0.98] ${
-                      on
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border hover:border-primary/50"
-                    }`}
-                  >
-                    {/* La coche évite de signaler l'état par la COULEUR SEULE. */}
-                    {on ? (
-                      <IconCheck className="h-4 w-4" />
-                    ) : (
-                      <Icon className="h-4 w-4" />
-                    )}
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
-
           {/* Durée */}
           <fieldset>
             <legend className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
@@ -743,8 +667,7 @@ export function BuyWizard({
                       {formatXof(price.priceXof!)}
                     </p>
                     <p className="text-xs text-muted">
-                      {isRental ? "Location" : "Code unique"} ·{" "}
-                      {verify === "CALL" ? "reçu par appel" : "reçu par SMS"}
+                      {isRental ? "Location" : "Code unique"} · reçu par SMS
                     </p>
                   </div>
                   <p className="text-right text-xs text-muted">
@@ -810,7 +733,6 @@ export function BuyWizard({
                         name="country"
                         value={country.code}
                       />
-                      <input type="hidden" name="verify" value={verify} />
                       <SubmitButton
                         variant="accent"
                         size="lg"

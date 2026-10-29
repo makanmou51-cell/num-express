@@ -21,6 +21,19 @@ import {
   ACCKIT_SERVICE_SLUG,
   usingAcckitOtp,
 } from "@/lib/acckit/otp-catalog";
+import {
+  annuler as sms1001Annuler,
+  codeRecu as sms1001CodeRecu,
+  commander as sms1001Commander,
+  echecTerminal as sms1001EchecTerminal,
+  Sms1001Error,
+  verifier as sms1001Verifier,
+} from "@/lib/sms1001/client";
+import {
+  decoderLigne,
+  SMS1001_SERVICE_SLUG,
+  usingSms1001,
+} from "@/lib/sms1001/catalog";
 import { applyWalletTx, InsufficientFundsError } from "@/lib/wallet";
 import { payReferralCommission } from "@/lib/affiliate";
 import { pushToUser } from "@/lib/push";
@@ -31,7 +44,7 @@ import type { Activation } from "@/generated/prisma/client";
 const ACTIVATION_TTL_MIN =
   env.activationTtlMin > 0
     ? env.activationTtlMin
-    : usingOnlineSim || usingAcckitOtp
+    : usingOnlineSim || usingAcckitOtp || usingSms1001
       ? 15
       : 20;
 
@@ -150,12 +163,66 @@ async function buyFromAcckit(
   };
 }
 
+/**
+ * Achat 1001SMS : `/activations/order` exige le POOL (MAIN, NEW, EXTRA…) et
+ * accepte un opérateur précis. Les deux sont encodés dans `providerId` au
+ * format « MAIN:Charlie » par `getSms1001Offer`, qui a choisi la ligne sur
+ * les taux réellement mesurés.
+ *
+ * La commande renvoie directement le numéro. Si elle revient SANS numéro, on
+ * annule aussitôt pour récupérer les fonds côté fournisseur — sans quoi on
+ * paie un numéro que le client n'aura jamais vu.
+ */
+async function buyFromSms1001(
+  serviceCode: string,
+  countryCode: string,
+  offer: CatalogOffer,
+): Promise<{
+  activationId: string;
+  phoneNumber: string;
+  expiresAt?: Date;
+  operator: string;
+}> {
+  if (!offer.providerId) {
+    throw new PurchaseError(
+      "UNAVAILABLE",
+      "Cette offre n'est plus disponible. Réessayez avec un autre pays.",
+    );
+  }
+  const { provider, operator } = decoderLigne(offer.providerId);
+  const ordre = await sms1001Commander(
+    countryCode,
+    SMS1001_SERVICE_SLUG[serviceCode] ?? serviceCode,
+    provider,
+    operator,
+  );
+
+  if (!ordre.phone) {
+    try {
+      await sms1001Annuler(ordre.id);
+    } catch {
+      /* best effort : leur remboursement automatique prendra le relais */
+    }
+    throw new PurchaseError(
+      "UNAVAILABLE",
+      "Le fournisseur n'a pas pu fournir de numéro. Essayez un autre pays.",
+    );
+  }
+
+  return {
+    activationId: ordre.id,
+    phoneNumber: ordre.phone,
+    /* Leur expiration fait foi quand ils la donnent ; sinon notre TTL. */
+    expiresAt: ordre.expireLe ?? undefined,
+    operator: offer.providerId,
+  };
+}
+
 /** Achète un numéro et débite l'utilisateur (atomique). */
 export async function purchaseNumber(
   userId: string,
   serviceCode: string,
   countryCode: string,
-  verifyType: "SMS" | "CALL" = "SMS",
 ): Promise<Activation> {
   // 1) Revalider l'offre et le prix côté serveur.
   const offer = await getOffer(serviceCode, countryCode);
@@ -191,10 +258,6 @@ export async function purchaseNumber(
       offer.rawCost * (1 + Math.max(0, settings.maxPriceBuffer)) * 100,
     ) / 100;
   let acquired: { activationId: string; phoneNumber: string };
-  /** Mode de vérification REELLEMENT obtenu (le FlashCall peut manquer de
-   *  stock et retomber sur un SMS). Déclaré ici pour rester lisible au moment
-   *  d'enregistrer l'activation, bien plus bas. */
-  let modeObtenu: "call" | "sms" = "sms";
   /** Opérateur réellement imposé (undefined = achat libre). Enregistré sur
    *  l'activation : sans ça, impossible de vérifier si forcer un opérateur
    *  sert à quelque chose — c'est ce qui a manqué en septembre. */
@@ -203,7 +266,12 @@ export async function purchaseNumber(
    *  notre TTL calculé n'est qu'un repli pour les autres fournisseurs. */
   let expiryFromProvider: Date | undefined;
   try {
-    if (usingAcckitOtp) {
+    if (usingSms1001) {
+      const b = await buyFromSms1001(serviceCode, countryCode, offer);
+      acquired = { activationId: b.activationId, phoneNumber: b.phoneNumber };
+      operateurObtenu = b.operator;
+      expiryFromProvider = b.expiresAt;
+    } else if (usingAcckitOtp) {
       const b = await buyFromAcckit(serviceCode, countryCode, offer);
       acquired = { activationId: b.activationId, phoneNumber: b.phoneNumber };
       operateurObtenu = b.operator;
@@ -232,73 +300,43 @@ export async function purchaseNumber(
       let lastErr: unknown;
       let got: { activationId: string; phoneNumber: string } | null = null;
 
-      /* Modes de vérification à tenter, dans l'ordre.
-         Le client qui demande « Appel » obtient d'abord un vrai numéro
-         FlashCall. Mais le FlashCall est un produit DISTINCT chez HeroSMS, à
-         son propre tarif : si son prix dépasse notre plafond `maxPrice`, ou
-         s'il n'y a pas de stock, l'achat échouerait et la vente serait
-         PERDUE. On retombe donc sur le SMS plutôt que de ne rien vendre —
-         exactement le comportement d'avant.
-         La marge, elle, est protégée dans tous les cas : `maxPrice` est un
-         plafond calculé sur le coût, HeroSMS ne peut jamais facturer au-delà. */
-      const modes: Array<"call" | "sms"> =
-        verifyType === "CALL" ? ["call", "sms"] : ["sms"];
-
       /* Limite de TEMPS plutôt que de nombre d'essais. Un pays peut avoir
          quatre réseaux ; les essayer tous à la suite ferait patienter le
          client sur un écran bloqué si aucun n'a de stock. Passé ce délai on
          saute directement au repli « sans opérateur », qui a toujours du
          stock. Le client ne perd donc jamais sa vente NI son temps. */
       const dateLimite = Date.now() + OPERATOR_TRY_BUDGET_MS;
-      for (const mode of modes) {
-        if (got) break;
-        for (const operator of attempts) {
-          if (operator !== undefined && Date.now() > dateLimite) continue;
-          try {
-            got = await grizzly.getNumber({
-              service: serviceCode,
-              country: countryCode,
-              maxPrice,
-              providerIds: offer.providerId ?? undefined,
-              operator,
-              /* Le choix du client descend ENFIN jusqu'au fournisseur. Il
-               s'arretait jusqu'ici dans notre base : « Appel » et « SMS »
-               achetaient exactement le meme numero, au meme prix, alors que
-               HeroSMS vend le FlashCall comme un produit distinct. */
-              verification: mode,
-            });
-            modeObtenu = mode;
-            /* On enregistre l'operateur REELLEMENT retenu. Sans cette ligne,
-               `operateurObtenu` restait indefini et la colonne `operator`
-               etait nulle sur 100 % des ventes — la selection d'operateurs
-               mesures tournait donc en aveugle : aucun moyen de savoir quel
-               reseau avait servi, ni lequel marche. « any » distingue le
-               repli sans operateur d'une absence d'enregistrement. */
-            operateurObtenu = operator ?? "any";
-            break;
-          } catch (err) {
-            lastErr = err;
-            // Cet opérateur n'a plus de stock : on passe au suivant. Toute autre
-            // erreur (solde, clé, service) est définitive, on la remonte.
-            const noStock =
-              err instanceof GrizzlyError &&
-              (err.code === "NO_NUMBERS" || err.code === "WRONG_MAX_PRICE");
-            if (noStock && operator !== undefined) continue;
-            /* Pas de stock FlashCall : on sort de cette boucle pour laisser le
-             mode suivant (SMS) tenter sa chance, au lieu de casser la vente. */
-            if (noStock && mode === "call") break;
-            throw err;
-          }
+      for (const operator of attempts) {
+        if (operator !== undefined && Date.now() > dateLimite) continue;
+        try {
+          got = await grizzly.getNumber({
+            service: serviceCode,
+            country: countryCode,
+            maxPrice,
+            providerIds: offer.providerId ?? undefined,
+            operator,
+            verification: "sms",
+          });
+          /* On enregistre l'operateur REELLEMENT retenu. Sans cette ligne,
+             `operateurObtenu` restait indefini et la colonne `operator`
+             etait nulle sur 100 % des ventes — la selection d'operateurs
+             mesures tournait donc en aveugle : aucun moyen de savoir quel
+             reseau avait servi, ni lequel marche. « any » distingue le
+             repli sans operateur d'une absence d'enregistrement. */
+          operateurObtenu = operator ?? "any";
+          break;
+        } catch (err) {
+          lastErr = err;
+          // Cet opérateur n'a plus de stock : on passe au suivant. Toute autre
+          // erreur (solde, clé, service) est définitive, on la remonte.
+          const noStock =
+            err instanceof GrizzlyError &&
+            (err.code === "NO_NUMBERS" || err.code === "WRONG_MAX_PRICE");
+          if (noStock && operator !== undefined) continue;
+          throw err;
         }
       }
       if (!got) throw lastErr;
-      if (verifyType === "CALL" && modeObtenu === "sms") {
-        console.warn(
-          "[achat] FlashCall indisponible, repli sur SMS —",
-          serviceCode,
-          countryCode,
-        );
-      }
       acquired = got;
     }
   } catch (e) {
@@ -319,6 +357,43 @@ export async function purchaseNumber(
           ? "Le fournisseur est momentanément surchargé. Réessayez dans un instant — vous n'avez pas été débité."
           : e.message;
       throw new PurchaseError("PROVIDER", friendly);
+    }
+    if (e instanceof Sms1001Error) {
+      if (e.code === "NO_STOCK") {
+        throw new PurchaseError(
+          "UNAVAILABLE",
+          "Stock épuisé sur ce pays. Essayez un autre pays.",
+        );
+      }
+      if (e.code === "NO_FUNDS") {
+        // C'est NOTRE solde 1001SMS qui est vide — le client n'y peut rien.
+        console.error(
+          "[1001sms] SOLDE FOURNISSEUR ÉPUISÉ — recharger 1001sms.com !",
+        );
+        throw new PurchaseError(
+          "PROVIDER",
+          "Service momentanément indisponible. Réessayez plus tard.",
+        );
+      }
+      if (e.code === "RATE_LIMIT") {
+        /* Leur seau de 30 requêtes est vide — souvent parce qu'un catalogue
+           se reconstruit au même instant. Rien n'a été acheté ni débité, et
+           cinq secondes suffisent à le vider. */
+        throw new PurchaseError(
+          "PROVIDER",
+          "Le fournisseur est momentanément saturé. Réessayez dans quelques secondes — vous n'avez pas été débité.",
+        );
+      }
+      if (e.code === "TIMEOUT" || e.code === "NETWORK") {
+        /* État INCONNU côté fournisseur : la commande a pu aboutir. On ne
+           rejoue JAMAIS (pas de clé d'idempotence côté 1001SMS). Le client
+           n'a pas été débité — le débit n'a lieu qu'après un achat confirmé. */
+        throw new PurchaseError(
+          "PROVIDER",
+          "Le fournisseur a mis trop de temps à répondre. Vous n'avez pas été débité — réessayez dans quelques minutes.",
+        );
+      }
+      throw new PurchaseError("PROVIDER", e.message);
     }
     if (e instanceof AccKitError) {
       if (e.code === "SOLD_OUT") {
@@ -362,8 +437,9 @@ export async function purchaseNumber(
   // (statut 1). Sans cet appel l'activation reste en attente côté fournisseur
   // et le code peut tarder à être acheminé. Best-effort : un échec ici ne doit
   // pas faire perdre le numéro déjà acheté.
-  // (AccKit : pas de statut à signaler — le numéro attend le SMS dès le /buy.)
-  if (!usingAcckitOtp) {
+  // (AccKit et 1001SMS : pas de statut à signaler — le numéro attend le SMS
+  // dès la commande.)
+  if (!usingAcckitOtp && !usingSms1001) {
     try {
       await grizzly.setStatus(acquired.activationId, SET_STATUS.READY);
     } catch (e) {
@@ -386,11 +462,11 @@ export async function purchaseNumber(
           priceXof: offer.priceXof,
           costRaw: offer.rawCost,
           status: "WAITING_CODE",
-          /* On enregistre le mode REELLEMENT obtenu, pas celui demandé. Si le
-             FlashCall n'avait pas de stock et qu'on est retombé sur un SMS, le
-             client doit voir « reçu par SMS » — et les statistiques doivent
-             dire la vérité sur ce qui marche. */
-          verifyType: modeObtenu === "call" ? "CALL" : "SMS",
+          /* La colonne reste : elle porte l'historique des ventes « Appel »
+             de septembre-octobre, que supprimer ferait mentir les
+             statistiques passées. Plus aucune vente ne s'y inscrit en CALL —
+             le produit n'existe plus chez nos fournisseurs. */
+          verifyType: "SMS",
           operator: operateurObtenu ?? null,
           expiresAt:
             expiryFromProvider ??
@@ -417,7 +493,9 @@ export async function purchaseNumber(
     // Échec du débit (course sur le solde…) : libérer le numéro chez le
     // fournisseur qui l'a vendu (AccKit rembourse alors immédiatement).
     try {
-      if (usingAcckitOtp) {
+      if (usingSms1001) {
+        await sms1001Annuler(acquired.activationId);
+      } else if (usingAcckitOtp) {
         await otpCancel(Number(acquired.activationId));
       } else {
         await grizzly.cancel(acquired.activationId);
@@ -564,6 +642,75 @@ export async function refreshActivation(
       return prisma.activation.findUnique({ where: { id: activation.id } });
     }
     return prisma.activation.findUnique({ where: { id: activation.id } });
+  }
+
+  /* ── 1001SMS ──────────────────────────────────────────────────────────
+     Ce sondage n'est PLUS le chemin principal : leur webhook signé pousse le
+     code dès qu'il arrive (voir /api/webhooks/1001sms). Il reste le filet —
+     webhook mal configuré, désactivé après 20 échecs, ou simplement en retard.
+     Les deux chemins se revendiquent l'activation de façon atomique, donc ils
+     peuvent arriver en même temps sans se marcher dessus. */
+  if (usingSms1001) {
+    let ordre;
+    try {
+      ordre = await sms1001Verifier(activation.providerActivationId);
+    } catch (e) {
+      /* Commande inconnue ET délai dépassé : terminal, on rembourse. */
+      if (
+        e instanceof Sms1001Error &&
+        e.code === "API" &&
+        activation.expiresAt &&
+        activation.expiresAt < new Date()
+      ) {
+        await refundActivation(activation, "EXPIRED");
+        return prisma.activation.findUnique({ where: { id: activation.id } });
+      }
+      return activation; // transitoire : on réessaiera au prochain poll
+    }
+
+    // Le numéro peut n'arriver qu'après l'achat : on le complète.
+    if (ordre.phone && !activation.phoneNumber) {
+      await prisma.activation.update({
+        where: { id: activation.id },
+        data: { phoneNumber: ordre.phone },
+      });
+    }
+
+    if (sms1001CodeRecu(ordre) && ordre.code) {
+      /* Revendication atomique : le webhook peut livrer le même code à la
+         même seconde. Sans la condition dans le WHERE, les deux verseraient
+         la commission de parrainage. */
+      const claim = await prisma.activation.updateMany({
+        where: { id: activation.id, status: "WAITING_CODE" },
+        data: { status: "RECEIVED", smsCode: ordre.code, smsText: ordre.texte },
+      });
+      if (claim.count > 0) {
+        notifyCodeReceived(activation.userId, ordre.code, activation.id);
+        payReferralCommission(
+          activation.userId,
+          activation.id,
+          activation.priceXof,
+        ).catch(() => {});
+      }
+      return prisma.activation.findUnique({ where: { id: activation.id } });
+    }
+
+    if (sms1001EchecTerminal(ordre)) {
+      /* Annulée ou expirée sans code : 1001SMS a remboursé de son côté. */
+      await refundActivation(activation, "REFUNDED");
+      return prisma.activation.findUnique({ where: { id: activation.id } });
+    }
+
+    if (activation.expiresAt && activation.expiresAt < new Date()) {
+      try {
+        await sms1001Annuler(activation.providerActivationId);
+      } catch {
+        /* Leur remboursement automatique intervient ~10 min après expiration. */
+      }
+      await refundActivation(activation, "EXPIRED");
+      return prisma.activation.findUnique({ where: { id: activation.id } });
+    }
+    return activation;
   }
 
   // ── AccKit : /check donne le statut (WAITING / RECEIVED / REFUNDED) ──
@@ -738,6 +885,19 @@ export async function cancelActivation(
     return { ok: true };
   }
 
+  if (usingSms1001) {
+    try {
+      await sms1001Annuler(activation.providerActivationId);
+    } catch {
+      /* Leur documentation prévient que certains pools refusent une
+         annulation pendant une à deux minutes. Notre propre délai de 5 min
+         est déjà passé ici, et une commande expirée est de toute façon
+         remboursée automatiquement chez eux : on rembourse le client. */
+    }
+    await refundActivation(activation, "CANCELLED");
+    return { ok: true };
+  }
+
   if (usingAcckitOtp) {
     try {
       await otpCancel(Number(activation.providerActivationId));
@@ -789,9 +949,9 @@ export async function requestNewCode(
   }
 
   try {
-    if (usingAcckitOtp) {
-      // AccKit n'a pas d'endpoint de renvoi : le client redemande le code
-      // depuis le service cible (WhatsApp…), le numéro reste le même.
+    if (usingAcckitOtp || usingSms1001) {
+      // Ni AccKit ni 1001SMS n'ont d'endpoint de renvoi : le client redemande
+      // le code depuis le service cible (WhatsApp…), le numéro reste le même.
       return {
         ok: false,
         message:

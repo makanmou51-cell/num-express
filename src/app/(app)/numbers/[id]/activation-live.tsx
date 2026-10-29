@@ -138,8 +138,6 @@ export function ActivationLive({
     };
   }, [activation.smsCode]);
 
-  const isCall = activation.verifyType === "CALL";
-
   return (
     <Card className="space-y-5 p-6">
       <div className="flex items-center justify-between gap-3">
@@ -195,7 +193,7 @@ export function ActivationLive({
               croit l'écran figé, recharge, puis appelle le support. */}
           <div className="rounded-xl border bg-gray-50 p-4">
             <p className="flex items-center gap-2 font-semibold text-foreground">
-              Recherche du {isCall ? "appel" : "SMS"} en cours
+              Recherche du SMS en cours
               <span className="flex gap-1" aria-hidden="true">
                 {[0, 150, 300].map((d) => (
                   <span
@@ -227,22 +225,13 @@ export function ActivationLive({
 
           {/* Consigne : deux lignes maximum, icône SVG (plus d'emoji). */}
           <div className="flex gap-3 rounded-xl border bg-white p-4">
-            {isCall ? (
-              <IconCall className="mt-0.5 h-5 w-5 text-primary" />
-            ) : (
-              <IconSms className="mt-0.5 h-5 w-5 text-primary" />
-            )}
+            <IconSms className="mt-0.5 h-5 w-5 text-primary" />
             <div className="text-sm text-muted">
-              <p className="font-medium text-foreground">
-                {isCall ? "Réception par appel" : "Réception par SMS"}
-              </p>
+              <p className="font-medium text-foreground">Réception par SMS</p>
               <p className="mt-1">
                 Saisissez ce numéro sur le service — le code s&apos;affiche ici
-                tout seul. Si le SMS tarde, choisissez{" "}
-                <strong className="text-foreground">
-                  «&nbsp;M&apos;appeler&nbsp;»
-                </strong>{" "}
-                : le code par appel arrive ici aussi.
+                tout seul. Inutile de demander un appel&nbsp;: ce numéro ne
+                reçoit que des SMS.
               </p>
             </div>
           </div>

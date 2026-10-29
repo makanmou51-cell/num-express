@@ -13,6 +13,9 @@ import { usingOnlineSim, usingHeroSms } from "@/lib/grizzly/catalog";
 import { usingAcckitOtp } from "@/lib/acckit/otp-catalog";
 import { acckit } from "@/lib/acckit/client";
 import { otpCountries } from "@/lib/acckit/otp";
+import { usingSms1001 } from "@/lib/sms1001/catalog";
+import { pays as sms1001Pays, solde as sms1001Solde } from "@/lib/sms1001/client";
+import { Sms1001Panel } from "./sms1001-panel";
 import { Suspense } from "react";
 import { RentalsProbe } from "./rentals-probe";
 import { RestApiProbe } from "./rest-api-probe";
@@ -36,23 +39,35 @@ async function safe<T>(
    dur dès que ce n'était pas OnlineSim — donc aussi quand HeroSMS tournait,
    ce qui laissait croire à une mauvaise configuration alors que tout était
    correct (le solde affiché était bien celui d'HeroSMS). */
-const PROVIDER_LABEL = usingAcckitOtp
-  ? "AccKit"
-  : usingOnlineSim
-    ? "OnlineSim"
+const PROVIDER_LABEL = usingSms1001
+  ? "1001SMS"
+  : usingAcckitOtp
+    ? "AccKit"
+    : usingOnlineSim
+      ? "OnlineSim"
+      : usingHeroSms
+        ? "HeroSMS"
+        : "Grizzly SMS";
+const PROVIDER_BASE_URL = usingSms1001
+  ? env.sms1001.baseUrl
+  : usingAcckitOtp
+    ? env.acckit.baseUrl
     : usingHeroSms
-      ? "HeroSMS"
-      : "Grizzly SMS";
-const PROVIDER_BASE_URL = usingAcckitOtp
-  ? env.acckit.baseUrl
-  : usingHeroSms
-    ? env.heroSms.baseUrl
-    : env.grizzly.baseUrl;
-const PROVIDER_CURRENCY = usingAcckitOtp
-  ? "VND"
-  : usingHeroSms
-    ? env.heroSms.currency
-    : env.grizzly.currency;
+      ? env.heroSms.baseUrl
+      : env.grizzly.baseUrl;
+const PROVIDER_CURRENCY = usingSms1001
+  ? "USD"
+  : usingAcckitOtp
+    ? "VND"
+    : usingHeroSms
+      ? env.heroSms.currency
+      : env.grizzly.currency;
+
+/* Les panneaux HeroSMS/Grizzly n'ont de sens que sous ces fournisseurs-là.
+   Affichés sous AccKit ou 1001SMS, ils remplissent la page de « fetch
+   failed » — le domaine HeroSMS n'existe plus depuis le 18 octobre — et
+   laissent croire à une panne de notre côté. */
+const PANNEAUX_SMS_ACTIVATE = !usingAcckitOtp && !usingSms1001;
 
 export default async function GrizzlyDiagnosticPage() {
   const [settings, balance, countries, catalog, active, os, strategies] =
@@ -63,21 +78,29 @@ export default async function GrizzlyDiagnosticPage() {
          fournisseur n est ni HeroSMS ni OnlineSim : avec AccKit actif, elle
          affichait le solde d un compte Grizzly inutilise — 0,41 USD — en
          laissant croire que les ventes allaient s arreter. */
-      safe(() => (usingAcckitOtp ? acckit.balance() : grizzly.getBalance())),
+      safe(async () =>
+        usingSms1001
+          ? (await sms1001Solde()).balance
+          : usingAcckitOtp
+            ? acckit.balance()
+            : grizzly.getBalance(),
+      ),
       /* Sous AccKit, grizzly.getCountries() renvoyait les 206 pays d un
          fournisseur qu on n utilise pas. On interroge celui qui sert. */
       safe(async () =>
-        usingAcckitOtp
-          ? Object.fromEntries(
-              (await otpCountries()).map((c) => [c.country, c.name]),
-            )
-          : grizzly.getCountries(),
+        usingSms1001
+          ? Object.fromEntries((await sms1001Pays()).map((c) => [c.slug, c.name]))
+          : usingAcckitOtp
+            ? Object.fromEntries(
+                (await otpCountries()).map((c) => [c.country, c.name]),
+              )
+            : grizzly.getCountries(),
       ),
       safe(() => getCatalogForService("wa")),
-      /* AccKit n a pas d equivalent « activations en cours » : on n affiche
-         donc rien plutot qu un chiffre venu d ailleurs. */
+      /* Ni AccKit ni 1001SMS n ont d equivalent « activations en cours » :
+         on n affiche donc rien plutot qu un chiffre venu d ailleurs. */
       safe(async () =>
-        usingAcckitOtp ? [] : await grizzly.getActiveActivations(),
+        PANNEAUX_SMS_ACTIVATE ? await grizzly.getActiveActivations() : [],
       ),
       safe(() => inspectOnlineSim(49)),
       safe(() => inspectCatalogStrategies()),
@@ -163,12 +186,26 @@ export default async function GrizzlyDiagnosticPage() {
         )}
       </Card>
 
+      {/* 1001SMS : solde, webhook et pools d'un pays. Le webhook est l'intérêt
+          principal de ce fournisseur — c'est donc lui qu'on surveille. */}
+      {usingSms1001 && (
+        <Suspense
+          fallback={
+            <Card className="p-5">
+              <p className="text-sm text-muted">Lecture de l&apos;état 1001SMS…</p>
+            </Card>
+          }
+        >
+          <Sms1001Panel />
+        </Suspense>
+      )}
+
       {/* Les quatre panneaux qui suivent interrogent HeroSMS. Son domaine
           n existe plus depuis le 18 octobre — « Non-existent domain » — donc
           ils ne peuvent qu echouer. Les afficher quand AccKit est actif
           remplissait la page de « fetch failed » et laissait croire a une
           panne de notre cote. */}
-      {!usingAcckitOtp && (
+      {PANNEAUX_SMS_ACTIVATE && (
         <>
       {/* Le webhook est-il reellement branche ? Leur API ne permet pas de
           relire le reglage : seul un appel recu le prouve. */}
