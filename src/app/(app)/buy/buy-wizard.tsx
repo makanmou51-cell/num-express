@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ServiceIcon } from "@/components/service-icon";
 import { WhatsAppGuide } from "@/components/whatsapp-guide";
 import { ButtonLink } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { formatXof } from "@/lib/pricing";
 import { purchaseAction } from "@/app/(app)/actions";
-import { rentAction } from "@/app/(app)/location/actions";
 
 type Svc = { code: string; name: string; featured: boolean };
 type Country = {
@@ -268,24 +267,88 @@ export function BuyWizard({
   const [ctryLimit, setCtryLimit] = useState(8);
   const [sortBy, setSortBy] = useState<"quality" | "price">("quality");
 
+  /**
+   * Liste des pays : préchargée, et gardée en mémoire.
+   *
+   * ── Pourquoi c'était lent ───────────────────────────────────────────
+   * Rien ne partait avant le clic sur le service. Le client attendait
+   * alors toute la chaîne bout à bout : aller-retour vers notre serveur,
+   * réveil éventuel de la fonction, puis les appels au fournisseur —
+   * mesurés entre 0,6 et 1,5 s rien que pour eux. Et comme la requête
+   * était en « no-store », revenir sur un service déjà consulté
+   * recommençait tout.
+   *
+   * Deux changements. Le chargement DÉMARRE dès que le doigt touche la
+   * carte du service, avant même que le clic soit relâché — ces quelques
+   * centaines de millisecondes sont autant de pris. Et le résultat est
+   * gardé en mémoire : revenir en arrière puis ressortir est instantané.
+   *
+   * La fraîcheur n'en souffre pas : le prix affiché ici ne sert qu'au
+   * classement. Celui qui sera facturé est recalculé à l'étape suivante,
+   * sans cache, et de toute façon revérifié au moment de l'achat.
+   */
+  const enMemoire = useRef(new Map<string, Country[]>());
+  const enCours = useRef(new Map<string, Promise<Country[]>>());
+
+  const chargerPays = useCallback((code: string): Promise<Country[]> => {
+    const dejaLa = enMemoire.current.get(code);
+    if (dejaLa) return Promise.resolve(dejaLa);
+    const enRoute = enCours.current.get(code);
+    if (enRoute) return enRoute;
+
+    const promesse = fetch(
+      `/api/buy/countries?service=${encodeURIComponent(code)}`,
+      { cache: "no-store" },
+    )
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) throw new Error(d.error);
+        const liste: Country[] = d.countries ?? [];
+        enMemoire.current.set(code, liste);
+        return liste;
+      })
+      .finally(() => {
+        /* On retire la promesse en cours quoi qu'il arrive : un échec ne
+           doit pas condamner ce service pour le reste de la visite. */
+        enCours.current.delete(code);
+      });
+
+    enCours.current.set(code, promesse);
+    return promesse;
+  }, []);
+
   useEffect(() => {
     if (!service) return;
+    const code = service.code;
+    const dejaLa = enMemoire.current.get(code);
+    if (dejaLa) {
+      setCountries(dejaLa);
+      setCtryErr(null);
+      return;
+    }
+    let vivant = true;
     setCountries(null);
     setCtryErr(null);
     setCtryLoading(true);
-    fetch(`/api/buy/countries?service=${encodeURIComponent(service.code)}`, {
-      cache: "no-store",
-    })
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) setCtryErr(d.error);
-        else setCountries(d.countries ?? []);
+    chargerPays(code)
+      .then((liste) => {
+        if (vivant) setCountries(liste);
       })
-      .catch(() =>
-        setCtryErr("Chargement impossible. Vérifiez votre connexion."),
-      )
-      .finally(() => setCtryLoading(false));
-  }, [service]);
+      .catch((e) => {
+        if (vivant) {
+          setCtryErr(
+            (e as Error).message ||
+              "Chargement impossible. Vérifiez votre connexion.",
+          );
+        }
+      })
+      .finally(() => {
+        if (vivant) setCtryLoading(false);
+      });
+    return () => {
+      vivant = false;
+    };
+  }, [service, chargerPays]);
 
   const filteredCtry = useMemo(() => {
     if (!countries) return [];
@@ -376,6 +439,16 @@ export function BuyWizard({
                     <button
                       type="button"
                       onClick={() => chooseService(s)}
+                      /* Le chargement part dès le contact, pas au clic : sur
+                         mobile il s'écoule 100 à 300 ms entre les deux, et
+                         sur un réseau lent elles comptent. Une promesse déjà
+                         en vol est réutilisée, jamais dupliquée. */
+                      onPointerDown={() => {
+                        chargerPays(s.code).catch(() => {});
+                      }}
+                      onMouseEnter={() => {
+                        chargerPays(s.code).catch(() => {});
+                      }}
                       className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-border bg-card px-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 active:bg-primary/10"
                     >
                       <ServiceIcon code={s.code} className="h-8 w-8 text-xs" />
