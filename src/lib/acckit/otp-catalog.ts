@@ -3,7 +3,7 @@ import { unstable_cache } from "next/cache";
 import { env } from "@/lib/env";
 import { computePublicPriceXof } from "@/lib/pricing";
 import { getSettings } from "@/lib/settings";
-import { otpServices, otpServers } from "./otp";
+import { otpServices, otpServers, otpCountries } from "./otp";
 // Cycle ESM assumé avec grizzly/catalog (qui nous importe pour ses branches
 // fournisseur) : sans danger car aucun accès aux bindings au niveau top-level —
 // serviceLabel n'est appelé qu'à l'exécution.
@@ -35,51 +35,72 @@ export const ACCKIT_SERVICE_SLUG: Record<string, string> = {
 };
 
 /**
- * Liste CURATÉE de 28 pays (slug AccKit, nom FR, iso).
+ * Noms francais pour les pays les plus vendus. Tout le reste prend le nom
+ * anglais renvoye par AccKit — mieux vaut un nom anglais qu un pays absent.
  *
- * Pourquoi ne pas utiliser GET /countries (194 pays) : l'API n'a pas de vue
- * « tous pays » pour les prix — il faut un appel /services PAR pays, et
- * interroger 194 pays rendrait la page /buy inutilisable (même mise en cache,
- * un rebuild ferait 194 appels). AccKit n'a de toute façon ni France ni USA ;
- * son fort est l'Afrique, l'Asie et l'Amérique latine — exactement la
- * clientèle visée.
+ * La liste des pays n est PLUS figee ici. Elle l etait, limitee a 28 entrees,
+ * au motif qu AccKit « n a de toute facon ni France ni USA ». C etait vrai
+ * pour la France, et faux pour le reste : mesure du 29 octobre, 184 pays ont
+ * du stock WhatsApp, dont le Portugal, l Espagne, l Allemagne, la Grece, les
+ * Pays-Bas, l Angleterre et la Pologne — precisement ce que nos clients
+ * achetent. Les clients ne voyaient que 27 pays sur 184.
  */
-const ACCKIT_COUNTRIES: { slug: string; name: string; iso: string }[] = [
-  { slug: "benin", name: "Bénin", iso: "bj" },
-  { slug: "togo", name: "Togo", iso: "tg" },
-  { slug: "ivorycoast", name: "Côte d'Ivoire", iso: "ci" },
-  { slug: "senegal", name: "Sénégal", iso: "sn" },
-  { slug: "cameroon", name: "Cameroun", iso: "cm" },
-  { slug: "ghana", name: "Ghana", iso: "gh" },
-  { slug: "nigeria", name: "Nigéria", iso: "ng" },
-  { slug: "kenya", name: "Kenya", iso: "ke" },
-  { slug: "tanzania", name: "Tanzanie", iso: "tz" },
-  { slug: "uganda", name: "Ouganda", iso: "ug" },
-  { slug: "southafrica", name: "Afrique du Sud", iso: "za" },
-  { slug: "morocco", name: "Maroc", iso: "ma" },
-  { slug: "egypt", name: "Égypte", iso: "eg" },
-  { slug: "philippines", name: "Philippines", iso: "ph" },
-  { slug: "vietnam", name: "Viêt Nam", iso: "vn" },
-  { slug: "indonesia", name: "Indonésie", iso: "id" },
-  { slug: "india", name: "Inde", iso: "in" },
-  { slug: "thailand", name: "Thaïlande", iso: "th" },
-  { slug: "malaysia", name: "Malaisie", iso: "my" },
-  { slug: "bangladesh", name: "Bangladesh", iso: "bd" },
-  { slug: "turkey", name: "Turquie", iso: "tr" },
-  { slug: "brazil", name: "Brésil", iso: "br" },
-  { slug: "mexico", name: "Mexique", iso: "mx" },
-  { slug: "colombia", name: "Colombie", iso: "co" },
-  { slug: "argentina", name: "Argentine", iso: "ar" },
-  { slug: "peru", name: "Pérou", iso: "pe" },
-  { slug: "chile", name: "Chili", iso: "cl" },
-];
+const NOMS_FR: Record<string, string> = {
+  benin: "Bénin",
+  togo: "Togo",
+  ivorycoast: "Côte d'Ivoire",
+  senegal: "Sénégal",
+  cameroon: "Cameroun",
+  ghana: "Ghana",
+  nigeria: "Nigéria",
+  kenya: "Kenya",
+  tanzania: "Tanzanie",
+  uganda: "Ouganda",
+  southafrica: "Afrique du Sud",
+  morocco: "Maroc",
+  egypt: "Égypte",
+  philippines: "Philippines",
+  vietnam: "Viêt Nam",
+  indonesia: "Indonésie",
+  india: "Inde",
+  thailand: "Thaïlande",
+  malaysia: "Malaisie",
+  bangladesh: "Bangladesh",
+  turkey: "Turquie",
+  brazil: "Brésil",
+  mexico: "Mexique",
+  colombia: "Colombie",
+  argentina: "Argentine",
+  peru: "Pérou",
+  chile: "Chili",
+  portugal: "Portugal",
+  spain: "Espagne",
+  germany: "Allemagne",
+  greece: "Grèce",
+  netherlands: "Pays-Bas",
+  england: "Royaume-Uni",
+  poland: "Pologne",
+  austria: "Autriche",
+  belgium: "Belgique",
+  ireland: "Irlande",
+  sweden: "Suède",
+  finland: "Finlande",
+  denmark: "Danemark",
+  croatia: "Croatie",
+  italy: "Italie",
+  usa: "USA",
+  canada: "Canada",
+  switzerland: "Suisse",
+  norway: "Norvège",
+};
 
-function countryName(slug: string): string {
-  return ACCKIT_COUNTRIES.find((c) => c.slug === slug)?.name ?? `Pays ${slug}`;
-}
+/* La liste des pays bouge rarement : on la garde une journee. */
+const listePays = unstable_cache(otpCountries, ["acckit:countries"], {
+  revalidate: 86_400,
+});
 
-function countryIso(slug: string): string | null {
-  return ACCKIT_COUNTRIES.find((c) => c.slug === slug)?.iso ?? null;
+function countryName(slug: string, nomApi?: string): string {
+  return NOMS_FR[slug] ?? nomApi ?? `Pays ${slug}`;
 }
 
 /**
@@ -96,18 +117,26 @@ async function buildCatalog(serviceCode: string): Promise<CatalogOffer[]> {
   const serviceSlug = ACCKIT_SERVICE_SLUG[serviceCode] ?? serviceCode;
   const pricing = await acckitPricing();
 
-  // Un appel /services par pays, en parallèle. Un pays en échec est IGNORÉ :
-  // il ne doit pas faire tomber tout le catalogue.
-  const rows: (CatalogOffer | null)[] = await Promise.all(
-    ACCKIT_COUNTRIES.map(async (c): Promise<CatalogOffer | null> => {
+  /* Un appel /services par pays. L API n a pas de vue « tous pays », il faut
+     donc 194 appels — d ou la concurrence bornee et le cache d une heure.
+     TRENTE en parallele, pas plus : mesure du 29 octobre, 30 donne 23 s et
+     des resultats complets, 60 descend a 7 s mais l API limite le debit et ne
+     renvoie plus que 54 pays sur 184. Vite et faux est pire que lent.
+     Un pays en echec est IGNORE : il ne doit pas faire tomber le catalogue. */
+  const pays = await listePays();
+  const rows: (CatalogOffer | null)[] = [];
+  const LOT = 30;
+  for (let i = 0; i < pays.length; i += LOT) {
+    const bloc = await Promise.all(
+      pays.slice(i, i + LOT).map(async (c): Promise<CatalogOffer | null> => {
       try {
-        const services = await otpServices(c.slug);
+        const services = await otpServices(c.country);
         const s = services.find((x) => x.service === serviceSlug);
         if (!s || !(s.price_from > 0) || !(s.qty > 0)) return null;
         return {
-          countryCode: c.slug,
-          countryName: c.name,
-          iso: c.iso,
+          countryCode: c.country,
+          countryName: countryName(c.country, c.name),
+          iso: c.iso || null,
           providerId: null,
           serviceCode,
           serviceName: serviceLabel(serviceCode),
@@ -116,14 +145,16 @@ async function buildCatalog(serviceCode: string): Promise<CatalogOffer[]> {
           priceXof: computePublicPriceXof(
             s.price_from,
             pricing,
-            `${serviceCode}:${c.slug}`,
+            `${serviceCode}:${c.country}`,
           ),
         } satisfies CatalogOffer;
       } catch {
         return null;
       }
-    }),
-  );
+      }),
+    );
+    rows.push(...bloc);
+  }
 
   const out = rows.filter((r): r is CatalogOffer => r !== null);
   out.sort((a, b) => a.priceXof - b.priceXof);
@@ -133,8 +164,12 @@ async function buildCatalog(serviceCode: string): Promise<CatalogOffer[]> {
 // Data Cache de Next (5 min) : 28 appels fournisseur par rebuild, on ne peut
 // pas se permettre de refaire ça à chaque visite de /buy. La clé de cache
 // inclut automatiquement l'argument serviceCode — un catalogue par service.
+/* Une heure, et non cinq minutes : un rebuild coute desormais 194 appels et
+   une vingtaine de secondes. Next sert la version precedente pendant qu il
+   reconstruit, donc un seul visiteur par heure peut attendre — et seulement
+   apres un deploiement. */
 const cachedCatalog = unstable_cache(buildCatalog, ["acckit:catalog"], {
-  revalidate: 300,
+  revalidate: 3600,
 });
 
 /** Catalogue des pays pour un service, trié par prix croissant (cache 5 min). */
@@ -170,7 +205,7 @@ export async function getAcckitOffer(
   return {
     countryCode: countrySlug,
     countryName: countryName(countrySlug),
-    iso: countryIso(countrySlug),
+    iso: null,
     // L'opérateur de la ligne choisie, IMPOSÉ au /buy (sinon AccKit sert au
     // hasard parmi tous les serveurs, y compris les moins fiables).
     providerId: row.operator,

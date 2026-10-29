@@ -10,6 +10,8 @@ import {
   inspectCatalogStrategies,
 } from "@/lib/onlinesim/probe";
 import { usingOnlineSim, usingHeroSms } from "@/lib/grizzly/catalog";
+import { usingAcckitOtp } from "@/lib/acckit/otp-catalog";
+import { acckit } from "@/lib/acckit/client";
 import { Suspense } from "react";
 import { RentalsProbe } from "./rentals-probe";
 import { RestApiProbe } from "./rest-api-probe";
@@ -33,23 +35,34 @@ async function safe<T>(
    dur dès que ce n'était pas OnlineSim — donc aussi quand HeroSMS tournait,
    ce qui laissait croire à une mauvaise configuration alors que tout était
    correct (le solde affiché était bien celui d'HeroSMS). */
-const PROVIDER_LABEL = usingOnlineSim
-  ? "OnlineSim"
+const PROVIDER_LABEL = usingAcckitOtp
+  ? "AccKit"
+  : usingOnlineSim
+    ? "OnlineSim"
+    : usingHeroSms
+      ? "HeroSMS"
+      : "Grizzly SMS";
+const PROVIDER_BASE_URL = usingAcckitOtp
+  ? env.acckit.baseUrl
   : usingHeroSms
-    ? "HeroSMS"
-    : "Grizzly SMS";
-const PROVIDER_BASE_URL = usingHeroSms
-  ? env.heroSms.baseUrl
-  : env.grizzly.baseUrl;
-const PROVIDER_CURRENCY = usingHeroSms
-  ? env.heroSms.currency
-  : env.grizzly.currency;
+    ? env.heroSms.baseUrl
+    : env.grizzly.baseUrl;
+const PROVIDER_CURRENCY = usingAcckitOtp
+  ? "VND"
+  : usingHeroSms
+    ? env.heroSms.currency
+    : env.grizzly.currency;
 
 export default async function GrizzlyDiagnosticPage() {
   const [settings, balance, countries, catalog, active, os, strategies] =
     await Promise.all([
       getSettings(),
-      safe(() => grizzly.getBalance()),
+      /* Le solde doit venir du fournisseur ACTIF. La page interrogeait
+         toujours grizzly.getBalance(), qui retombe sur Grizzly des que le
+         fournisseur n est ni HeroSMS ni OnlineSim : avec AccKit actif, elle
+         affichait le solde d un compte Grizzly inutilise — 0,41 USD — en
+         laissant croire que les ventes allaient s arreter. */
+      safe(() => (usingAcckitOtp ? acckit.balance() : grizzly.getBalance())),
       safe(() => grizzly.getCountries()),
       safe(() => getCatalogForService("wa")),
       safe(() => grizzly.getActiveActivations()),
@@ -103,6 +116,13 @@ export default async function GrizzlyDiagnosticPage() {
         )}
       </Card>
 
+      {/* Les quatre panneaux qui suivent interrogent HeroSMS. Son domaine
+          n existe plus depuis le 18 octobre — « Non-existent domain » — donc
+          ils ne peuvent qu echouer. Les afficher quand AccKit est actif
+          remplissait la page de « fetch failed » et laissait croire a une
+          panne de notre cote. */}
+      {!usingAcckitOtp && (
+        <>
       {/* Le webhook est-il reellement branche ? Leur API ne permet pas de
           relire le reglage : seul un appel recu le prouve. */}
       <Suspense
@@ -158,9 +178,11 @@ export default async function GrizzlyDiagnosticPage() {
       >
         <RentalsProbe service="wa" />
       </Suspense>
+        </>
+      )}
 
       <Alert variant={usingOnlineSim ? "info" : "success"}>
-        <strong>Fournisseur ACTIF : {PROVIDER_LABEL}</strong> — c'est lui qui
+        <strong>Fournisseur ACTIF : {PROVIDER_LABEL}</strong> — c&apos;est lui qui
         délivre les numéros vendus sur le site.{" "}
         {usingOnlineSim
           ? "Grizzly reste connecté ci-dessous, mais n'est plus utilisé."
@@ -238,7 +260,7 @@ export default async function GrizzlyDiagnosticPage() {
           Sonde OnlineSim (depuis le serveur Vercel)
         </h2>
         <p className="mb-3 text-xs text-muted">
-          Appels en lecture seule — n'achètent aucun numéro. Sert à vérifier la
+          Appels en lecture seule — n&apos;achètent aucun numéro. Sert à vérifier la
           connectivité et à relever les formats de réponse.
         </p>
         {!os.ok ? (
@@ -287,8 +309,8 @@ export default async function GrizzlyDiagnosticPage() {
           OnlineSim — stratégie catalogue (tous les pays en 1 appel ?)
         </h2>
         <p className="mb-3 text-xs text-muted">
-          On cherche la variante qui renvoie tous les pays d'un service avec
-          leur prix. Idéal : beaucoup d'entrées + « prix: oui ».
+          On cherche la variante qui renvoie tous les pays d&apos;un service avec
+          leur prix. Idéal : beaucoup d&apos;entrées + « prix: oui ».
         </p>
         {!strategies.ok ? (
           <Alert variant="error">{strategies.error}</Alert>
