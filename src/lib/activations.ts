@@ -574,6 +574,35 @@ async function refundActivation(
  * Interroge Grizzly pour mettre à jour une activation : récupère le code,
  * gère l'annulation/expiration et déclenche le remboursement le cas échéant.
  */
+/**
+ * À quel fournisseur appartient CETTE activation ?
+ *
+ * ── Le bug que ça corrige, constaté en production le 30 octobre ─────────
+ * Jusqu'ici le code devinait le fournisseur en lisant `SMS_PROVIDER`. Ça
+ * marche tant qu'on n'en change jamais. Le 30 octobre on est repassé de
+ * 1001SMS à HeroSMS pendant qu'une activation 1001SMS était encore en cours :
+ * un client venait de payer 4 800 F un numéro portugais. Dès la bascule,
+ * `refreshActivation` a interrogé HeroSMS avec un identifiant 1001SMS, qui
+ * ne lui disait rien. L'activation est restée bloquée en attente, et les
+ * 4 800 F du client avec elle — alors que 1001SMS l'avait déjà marquée
+ * EXPIRED et remboursée de son côté.
+ *
+ * ── Pourquoi un test sur la FORME de l'identifiant ──────────────────────
+ * Aucune colonne n'enregistre le fournisseur. La vraie correction est de
+ * l'ajouter, et elle viendra avec le double branchement. En attendant, les
+ * deux familles d'identifiants ne se ressemblent pas du tout :
+ *
+ *     Grizzly / HeroSMS   « 18385 »                    chiffres uniquement
+ *     1001SMS             « cmvv96ncb0kbpqk01uarl6afj » cuid, 25 caractères
+ *
+ * Un identifiant non numérique ne peut donc pas venir de la famille
+ * sms-activate. C'est étroit, c'est vérifiable, et ça ne survivra pas à la
+ * colonne `provider` — tant mieux.
+ */
+function activationVientDe1001(activation: Activation): boolean {
+  return !/^\d+$/.test(activation.providerActivationId);
+}
+
 export async function refreshActivation(
   userId: string,
   activationId: string,
@@ -640,7 +669,7 @@ export async function refreshActivation(
      webhook mal configuré, désactivé après 20 échecs, ou simplement en retard.
      Les deux chemins se revendiquent l'activation de façon atomique, donc ils
      peuvent arriver en même temps sans se marcher dessus. */
-  if (usingSms1001) {
+  if (usingSms1001 || activationVientDe1001(activation)) {
     let ordre;
     try {
       ordre = await sms1001Verifier(activation.providerActivationId);
@@ -817,7 +846,7 @@ export async function cancelActivation(
     return { ok: true };
   }
 
-  if (usingSms1001) {
+  if (usingSms1001 || activationVientDe1001(activation)) {
     try {
       await sms1001Annuler(activation.providerActivationId);
     } catch {
