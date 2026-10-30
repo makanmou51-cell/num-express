@@ -679,12 +679,15 @@ export function BuyWizard({
                 );
               })}
             </div>
+            {/* NE PAS couper la ligne entre {service.name} et le mot suivant :
+                JSX supprime l'espace qui contient un retour à la ligne, et le
+                texte s'affichait « WhatsAppquand ». */}
             {verify === "CALL" && (
               <p className="mt-1.5 px-1 text-xs text-muted">
-                Choisissez «&nbsp;M&apos;appeler&nbsp;» dans{" "}
-                {service.name} quand le SMS tarde. Le code dicté s&apos;affichera
-                ici. Si l&apos;appel n&apos;est pas disponible, vous recevrez un
-                SMS au même prix.
+                Choisissez «&nbsp;M&apos;appeler&nbsp;» dans {service.name}{" "}
+                quand le SMS tarde. Le code dicté s&apos;affichera ici. Si
+                l&apos;appel n&apos;est pas disponible, vous recevrez un SMS au
+                même prix.
               </p>
             )}
           </fieldset>

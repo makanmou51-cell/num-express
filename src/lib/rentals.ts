@@ -83,7 +83,14 @@ async function fetchRentServices(): Promise<RentService[]> {
     seen.add(s.code);
     list.push({
       code: s.code,
-      name: cleanServiceName(s.name) || s.code.toUpperCase(),
+      /* NOTRE libellé d'abord. HeroSMS écrit « Whatsapp » — un seul p
+         majuscule en moins, mais c'est le nom de la marque, affiché en
+         pleine page d'achat. Michael l'a repéré le 30 octobre. Notre carte
+         SERVICE_LABELS porte l'orthographe exacte des marques qu'on vend
+         (« WhatsApp », « Twitter / X », « Google / Gmail ») ; on ne retombe
+         sur le nom du fournisseur que pour les services qu'elle ne couvre
+         pas, et il y en a plusieurs centaines. */
+      name: serviceLabel(s.code, cleanServiceName(s.name) || s.code.toUpperCase()),
       featured: RENT_SERVICES.includes(s.code),
     });
   }

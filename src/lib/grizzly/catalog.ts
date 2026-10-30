@@ -95,8 +95,15 @@ const COUNTRY_FR: Record<string, string> = {
   Colombia: "Colombie",
 };
 
-export function serviceLabel(code: string): string {
-  return SERVICE_LABELS[code] ?? code.toUpperCase();
+/**
+ * Libellé d'un service. `repli` sert quand on dispose déjà d'un nom venu du
+ * fournisseur : notre carte reste prioritaire — elle porte l'orthographe
+ * exacte des marques (« WhatsApp », pas « Whatsapp ») — et le nom du
+ * fournisseur ne sert que pour les centaines de services qu'elle ne couvre
+ * pas.
+ */
+export function serviceLabel(code: string, repli?: string): string {
+  return SERVICE_LABELS[code] ?? repli ?? code.toUpperCase();
 }
 
 function countryLabel(info?: CountryInfo, code?: string): string {
