@@ -212,6 +212,7 @@ export async function purchaseNumber(
   userId: string,
   serviceCode: string,
   countryCode: string,
+  verifyType: "SMS" | "CALL" = "SMS",
 ): Promise<Activation> {
   // 1) Revalider l'offre et le prix côté serveur.
   const offer = await getOffer(serviceCode, countryCode);
@@ -247,6 +248,10 @@ export async function purchaseNumber(
       offer.rawCost * (1 + Math.max(0, settings.maxPriceBuffer)) * 100,
     ) / 100;
   let acquired: { activationId: string; phoneNumber: string };
+  /** Mode de vérification RÉELLEMENT obtenu. Le FlashCall est un produit
+   *  distinct chez HeroSMS : il peut manquer de stock, et on retombe alors
+   *  sur le SMS. On enregistre ce qui a été servi, pas ce qui a été demandé. */
+  let modeObtenu: "call" | "sms" = "sms";
   /** Opérateur réellement imposé (undefined = achat libre). Enregistré sur
    *  l'activation : sans ça, impossible de vérifier si forcer un opérateur
    *  sert à quelque chose — c'est ce qui a manqué en septembre. */
@@ -290,37 +295,67 @@ export async function purchaseNumber(
          saute directement au repli « sans opérateur », qui a toujours du
          stock. Le client ne perd donc jamais sa vente NI son temps. */
       const dateLimite = Date.now() + OPERATOR_TRY_BUDGET_MS;
-      for (const operator of attempts) {
-        if (operator !== undefined && Date.now() > dateLimite) continue;
-        try {
-          got = await grizzly.getNumber({
-            service: serviceCode,
-            country: countryCode,
-            maxPrice,
-            providerIds: offer.providerId ?? undefined,
-            operator,
-            verification: "sms",
-          });
-          /* On enregistre l'operateur REELLEMENT retenu. Sans cette ligne,
-             `operateurObtenu` restait indefini et la colonne `operator`
-             etait nulle sur 100 % des ventes — la selection d'operateurs
-             mesures tournait donc en aveugle : aucun moyen de savoir quel
-             reseau avait servi, ni lequel marche. « any » distingue le
-             repli sans operateur d'une absence d'enregistrement. */
-          operateurObtenu = operator ?? "any";
-          break;
-        } catch (err) {
-          lastErr = err;
-          // Cet opérateur n'a plus de stock : on passe au suivant. Toute autre
-          // erreur (solde, clé, service) est définitive, on la remonte.
-          const noStock =
-            err instanceof GrizzlyError &&
-            (err.code === "NO_NUMBERS" || err.code === "WRONG_MAX_PRICE");
-          if (noStock && operator !== undefined) continue;
-          throw err;
+
+      /* Modes de vérification à tenter, dans l'ordre.
+         Le client qui demande « Appel » obtient d'abord un vrai numéro
+         FlashCall. Mais le FlashCall est un produit DISTINCT chez HeroSMS, à
+         son propre tarif : si son prix dépasse notre plafond `maxPrice`, ou
+         s'il n'y a pas de stock, l'achat échouerait et la vente serait
+         PERDUE. On retombe donc sur le SMS plutôt que de ne rien vendre.
+         La marge est protégée dans tous les cas : `maxPrice` est un plafond
+         calculé sur le coût, HeroSMS ne peut jamais facturer au-delà. */
+      const modes: Array<"call" | "sms"> =
+        verifyType === "CALL" ? ["call", "sms"] : ["sms"];
+
+      for (const mode of modes) {
+        if (got) break;
+        for (const operator of attempts) {
+          if (operator !== undefined && Date.now() > dateLimite) continue;
+          try {
+            got = await grizzly.getNumber({
+              service: serviceCode,
+              country: countryCode,
+              maxPrice,
+              providerIds: offer.providerId ?? undefined,
+              operator,
+              /* Le choix du client descend jusqu'au fournisseur. Il s'arrêtait
+                 autrefois dans notre base : « Appel » et « SMS » achetaient
+                 exactement le même numéro, au même prix, alors que HeroSMS
+                 vend le FlashCall comme un produit distinct. */
+              verification: mode,
+            });
+            modeObtenu = mode;
+            /* On enregistre l'operateur REELLEMENT retenu. Sans cette ligne,
+               `operateurObtenu` restait indefini et la colonne `operator`
+               etait nulle sur 100 % des ventes — la selection d'operateurs
+               mesures tournait donc en aveugle : aucun moyen de savoir quel
+               reseau avait servi, ni lequel marche. « any » distingue le
+               repli sans operateur d'une absence d'enregistrement. */
+            operateurObtenu = operator ?? "any";
+            break;
+          } catch (err) {
+            lastErr = err;
+            // Cet opérateur n'a plus de stock : on passe au suivant. Toute autre
+            // erreur (solde, clé, service) est définitive, on la remonte.
+            const noStock =
+              err instanceof GrizzlyError &&
+              (err.code === "NO_NUMBERS" || err.code === "WRONG_MAX_PRICE");
+            if (noStock && operator !== undefined) continue;
+            /* Pas de stock FlashCall : on sort de cette boucle pour laisser le
+               mode suivant (SMS) tenter sa chance, au lieu de casser la vente. */
+            if (noStock && mode === "call") break;
+            throw err;
+          }
         }
       }
       if (!got) throw lastErr;
+      if (verifyType === "CALL" && modeObtenu === "sms") {
+        console.warn(
+          "[achat] FlashCall indisponible, repli sur SMS —",
+          serviceCode,
+          countryCode,
+        );
+      }
       acquired = got;
     }
   } catch (e) {
@@ -419,11 +454,11 @@ export async function purchaseNumber(
           priceXof: offer.priceXof,
           costRaw: offer.rawCost,
           status: "WAITING_CODE",
-          /* La colonne reste : elle porte l'historique des ventes « Appel »
-             de septembre-octobre, que supprimer ferait mentir les
-             statistiques passées. Plus aucune vente ne s'y inscrit en CALL —
-             le produit n'existe plus chez nos fournisseurs. */
-          verifyType: "SMS",
+          /* On enregistre le mode REELLEMENT obtenu, pas celui demandé. Si le
+             FlashCall n'avait pas de stock et qu'on est retombé sur un SMS, le
+             client doit voir « reçu par SMS » — et les statistiques doivent
+             dire la vérité sur ce qui marche. */
+          verifyType: modeObtenu === "call" ? "CALL" : "SMS",
           operator: operateurObtenu ?? null,
           expiresAt:
             expiryFromProvider ??

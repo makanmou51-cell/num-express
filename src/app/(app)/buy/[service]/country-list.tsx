@@ -2,7 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { ButtonLink } from "@/components/ui";
-import { IconCheck, IconGlobe } from "@/components/icons";
+import {
+  IconCall,
+  IconCheck,
+  IconGlobe,
+  IconSms,
+} from "@/components/icons";
 import { SubmitButton } from "@/components/submit-button";
 import { formatXof } from "@/lib/pricing";
 import { purchaseAction } from "@/app/(app)/actions";
@@ -48,6 +53,7 @@ export function CountryList({
   userBalance: number;
 }) {
   const [q, setQ] = useState("");
+  const [verify, setVerify] = useState<"SMS" | "CALL">("SMS");
   const [picked, setPicked] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
@@ -64,16 +70,59 @@ export function CountryList({
     /* pb-56 quand le récapitulatif est ouvert : sans cette réserve, les
        dernières lignes de la liste passent dessous et deviennent inatteignables. */
     <div className={`space-y-3 ${chosen ? "pb-56" : ""}`}>
-      {/* Telegram envoie d abord le code DANS l application si une autre
-          session existe — sans cette precision, le client attend un SMS qui
-          n arrivera jamais et conclut que le numero ne marche pas. */}
-      {service === "tg" && (
-        <p className="px-1 text-xs text-muted">
-          Telegram envoie d&apos;abord le code{" "}
-          <strong>dans l&apos;application</strong> si vous y êtes déjà connecté
-          ailleurs. Déconnectez-vous des autres appareils pour recevoir le SMS.
+      {/* Type de réception */}
+      <div className="space-y-1.5">
+        <p
+          id="verify-label"
+          className="px-1 text-xs font-semibold uppercase tracking-wide text-muted"
+        >
+          Réception du code
         </p>
-      )}
+        <div
+          role="radiogroup"
+          aria-labelledby="verify-label"
+          className="flex gap-2"
+        >
+          {(["SMS", "CALL"] as const).map((v) => {
+            const on = verify === v;
+            return (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => setVerify(v)}
+                className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border-2 px-3 text-sm font-semibold transition-colors ${
+                  on
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card active:bg-gray-100"
+                }`}
+              >
+                {v === "SMS" ? (
+                  <IconSms className="h-4 w-4" />
+                ) : (
+                  <IconCall className="h-4 w-4" />
+                )}
+                {v === "SMS" ? "Par SMS" : "Par appel"}
+                {on && <IconCheck className="h-4 w-4" />}
+              </button>
+            );
+          })}
+        </div>
+        {/* L aide est propre a chaque service : les parcours n ont rien a
+            voir. Telegram essaie d abord l application, puis le SMS, puis
+            propose l appel au bout de deux minutes — un client qui ne le
+            sait pas reste devant un ecran vide. */}
+        {verify === "CALL" && <AideAppel service={service} />}
+        {verify === "SMS" && service === "tg" && (
+          <p className="px-1 text-xs text-muted">
+            Telegram envoie d&apos;abord le code{" "}
+            <strong>dans l&apos;application</strong> si vous y êtes déjà
+            connecté ailleurs. Sinon il envoie un SMS, puis propose
+            «&nbsp;Appelez-moi&nbsp;» après environ deux minutes.
+          </p>
+        )}
+      </div>
 
       {/* Recherche pays */}
       <div className="relative">
@@ -160,7 +209,8 @@ export function CountryList({
             <div className="flex items-center gap-2">
               <Flag iso={chosen.iso} />
               <p className="min-w-0 flex-1 truncate text-sm">
-                <strong>{serviceName}</strong> · {chosen.countryName} · par SMS
+                <strong>{serviceName}</strong> · {chosen.countryName} ·{" "}
+                {verify === "SMS" ? "par SMS" : "par appel"}
               </p>
               <button
                 type="button"
@@ -202,7 +252,7 @@ export function CountryList({
               </ButtonLink>
             ) : (
               <form action={purchaseAction} className="mt-3">
-                {/* NE PAS renommer : `purchaseAction` lit exactement ces deux
+                {/* NE PAS renommer : `purchaseAction` lit exactement ces trois
                     noms. Un champ perdu = achat cassé sans message. */}
                 <input type="hidden" name="service" value={service} />
                 <input
@@ -210,6 +260,7 @@ export function CountryList({
                   name="country"
                   value={chosen.countryCode}
                 />
+                <input type="hidden" name="verify" value={verify} />
                 {/* SubmitButton se désactive pendant l'envoi : un seul bouton
                     pour toute la liste, donc un double appui sur 3G enverrait
                     autrement deux achats. */}
@@ -251,3 +302,34 @@ function Flag({ iso }: { iso: string | null }) {
   );
 }
 
+
+/**
+ * Aide à la réception par appel, propre à chaque service.
+ *
+ * Pourquoi ce n'est pas un seul texte : les parcours n'ont rien à voir.
+ * WhatsApp affiche un bouton « M'appeler » après l'échec du SMS. Telegram,
+ * lui, essaie d'abord l'application elle-même, puis le SMS, puis propose
+ * l'appel au bout de deux minutes environ — un client qui ne le sait pas
+ * reste devant un écran vide en croyant que le numéro ne marche pas.
+ */
+function AideAppel({ service }: { service: string }) {
+  const texte =
+    service === "tg" ? (
+      <>
+        Sur Telegram, attendez le SMS puis touchez{" "}
+        <strong>«&nbsp;Appelez-moi&nbsp;»</strong> (il apparaît après environ
+        deux minutes). Le code dicté s&apos;affichera ici.
+      </>
+    ) : service === "wa" ? (
+      <>
+        Sur WhatsApp, choisissez <strong>«&nbsp;M&apos;appeler&nbsp;»</strong>{" "}
+        quand le SMS tarde. Le code reçu par appel s&apos;affichera ici.
+      </>
+    ) : (
+      <>
+        Choisissez l&apos;option d&apos;appel dans l&apos;application quand le
+        SMS tarde. Le code dicté s&apos;affichera ici.
+      </>
+    );
+  return <p className="px-1 text-xs text-muted">{texte}</p>;
+}
