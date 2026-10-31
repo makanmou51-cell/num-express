@@ -6,34 +6,47 @@ import { IconChat } from "@/components/icons";
 /**
  * Lanceur de chat maison.
  *
- * Pourquoi ne pas garder la bulle de Tidio : elle est ancrée en bas à droite
- * et recouvrait les onglets « Boost » et « Solde » de la barre de navigation.
- * Une règle CSS sur `#tidio-chat-iframe` n'a eu aucun effet — le widget est
- * injecté depuis une iframe dont l'URL est versionnée et hachée, on ne peut
- * pas compter sur son arborescence.
+ * ── Pourquoi on ne garde pas la bulle du prestataire ────────────────────
+ * Elle est ancrée en bas à droite et recouvre les onglets « Boost » et
+ * « Solde » de la barre de navigation. Aucune règle CSS n'en vient à bout :
+ * le widget vit dans une iframe dont l'URL est versionnée et hachée, on ne
+ * peut pas compter sur son arborescence.
  *
- * On passe donc par l'API publique (vérifiée dans le loader Tidio : `show`,
- * `hide`, `open`, `close`, `on`, préfixe d'événements `tidioChat-`) : on masque
- * leur bulle et on affiche la nôtre, positionnée par rapport à la barre
- * d'onglets réellement présente sur la page.
+ * On passe donc par leur API publique : on masque leur bulle et on affiche
+ * la nôtre, positionnée par rapport à la barre d'onglets réellement
+ * présente.
  *
- * Dégradation volontaire : `hide()` n'est appelé QUE si l'API répond. Si Tidio
- * ne charge pas (réseau coupé, bloqueur), ce composant ne rend rien et la
- * bulle d'origine reste — le chat est alors mal placé, mais joignable. Jamais
- * l'inverse : on ne masque pas leur bulle sans avoir la nôtre.
+ * ── Tawk.to, et ses deux pièges ─────────────────────────────────────────
+ * On est revenu de Tidio à Tawk le 31 octobre (Tidio coupe à 50
+ * conversations par mois). Leur API ne se manipule pas de la même façon :
+ *
+ * 1. `hideWidget()` AVANT le chargement est ignoré en silence. Tawk impose
+ *    de passer par `Tawk_API.onLoad`, qu'il appelle lui-même une fois prêt.
+ *    On pose donc le rappel, et on gère aussi le cas où le script a fini
+ *    avant que ce composant monte.
+ * 2. Il n'y a pas d'événement sur `document` comme chez Tidio. Tout passe
+ *    par des propriétés qu'on assigne sur l'objet `Tawk_API`.
+ *
+ * ── Dégradation volontaire ──────────────────────────────────────────────
+ * `hideWidget()` n'est appelé QUE si l'API répond. Si Tawk ne charge pas
+ * (réseau coupé, bloqueur de publicité), ce composant ne rend rien et la
+ * bulle d'origine reste : le chat est alors mal placé, mais joignable.
+ * Jamais l'inverse — on ne masque pas leur bulle sans avoir la nôtre.
  */
 
-type TidioApi = {
-  show(): void;
-  hide(): void;
-  open(): void;
-  close(): void;
-  on(event: string, callback: () => void): void;
+type TawkApi = {
+  showWidget?(): void;
+  hideWidget?(): void;
+  maximize?(): void;
+  minimize?(): void;
+  onLoad?: () => void;
+  onChatMinimized?: () => void;
+  onChatMaximized?: () => void;
 };
 
 declare global {
   interface Window {
-    tidioChatApi?: TidioApi;
+    Tawk_API?: TawkApi;
   }
 }
 
@@ -41,29 +54,55 @@ declare global {
 const BASE_GAP = 20;
 
 export function ChatButton() {
-  const [api, setApi] = useState<TidioApi | null>(null);
+  const [api, setApi] = useState<TawkApi | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [bottom, setBottom] = useState(BASE_GAP);
 
   useEffect(() => {
-    let done = false;
-    const init = () => {
-      const a = window.tidioChatApi;
-      if (!a || done) return;
-      done = true;
-      a.hide();
+    let fini = false;
+
+    const prendreLaMain = () => {
+      const a = window.Tawk_API;
+      /* `hideWidget` n'existe qu'une fois le widget réellement monté : sa
+         présence est le seul signal fiable que l'API est utilisable. */
+      if (!a || typeof a.hideWidget !== "function" || fini) return;
+      fini = true;
+      a.hideWidget();
       setApi(a);
-      // Quand le client ferme la conversation, on remasque leur bulle et on
-      // réaffiche la nôtre.
-      a.on("close", () => {
-        a.hide();
+      /* Quand le client ferme la conversation, on remasque leur bulle et on
+         réaffiche la nôtre. */
+      a.onChatMinimized = () => {
+        a.hideWidget?.();
         setChatOpen(false);
-      });
+      };
     };
 
-    init(); // l'API peut déjà être prête quand ce composant monte
-    document.addEventListener("tidioChat-ready", init);
-    return () => document.removeEventListener("tidioChat-ready", init);
+    /* Le script a pu finir avant ce montage : on tente tout de suite. */
+    prendreLaMain();
+
+    if (!fini) {
+      /* Sinon on se branche sur leur rappel. On préserve celui qui existe
+         déjà plutôt que de l'écraser — un autre script pourrait l'utiliser. */
+      const existant = window.Tawk_API?.onLoad;
+      window.Tawk_API = window.Tawk_API || {};
+      window.Tawk_API.onLoad = () => {
+        existant?.();
+        prendreLaMain();
+      };
+    }
+
+    /* Filet : `onLoad` peut ne jamais être appelé si le script est bloqué.
+       On sonde brièvement, puis on abandonne — pas de minuterie éternelle. */
+    const sonde = setInterval(() => {
+      if (fini) clearInterval(sonde);
+      else prendreLaMain();
+    }, 1000);
+    const arret = setTimeout(() => clearInterval(sonde), 20_000);
+
+    return () => {
+      clearInterval(sonde);
+      clearTimeout(arret);
+    };
   }, []);
 
   /* Position calculée sur la barre d'onglets RÉELLE plutôt que sur une
@@ -75,9 +114,7 @@ export function ChatButton() {
         'nav[aria-label="Navigation principale"]',
       );
       const visible = nav && nav.offsetParent !== null;
-      setBottom(
-        visible ? nav.getBoundingClientRect().height + 12 : BASE_GAP,
-      );
+      setBottom(visible ? nav.getBoundingClientRect().height + 12 : BASE_GAP);
     };
     measure();
     window.addEventListener("resize", measure);
@@ -86,8 +123,8 @@ export function ChatButton() {
 
   const openChat = useCallback(() => {
     if (!api) return;
-    api.show();
-    api.open();
+    api.showWidget?.();
+    api.maximize?.();
     setChatOpen(true);
   }, [api]);
 

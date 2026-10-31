@@ -73,24 +73,26 @@ export default function RootLayout({
         </Suspense>
         {/* Lanceur du chat, placé au-dessus de la barre d'onglets. */}
         <ChatButton />
-        {/* Chat client (Tidio). La bulle de Tidio elle-même est masquée par
-            <ChatButton/>, qui la remplace par un lanceur maison placé au-dessus
-            de la barre d'onglets. Ici on ne fait que forcer le vert de marque
-            (--primary) à la place du bleu Tidio.
-            Double garde : l'API peut déjà exister quand ce script s'exécute,
-            sinon on attend l'événement `tidioChat-ready`. */}
-        <Script id="tidio-theme" strategy="afterInteractive">
-          {`(function(){
-function ready(){try{window.tidioChatApi.setColorPalette('#047857');}catch(e){}}
-if(window.tidioChatApi){ready();}
-document.addEventListener('tidioChat-ready',ready);
+        {/* Chat client — Tawk.to.
+            Retour à Tawk après Tidio : le plan gratuit de Tidio s'arrête à
+            50 conversations par mois, et le chat s'est coupé le 31 octobre.
+            Tawk n'a aucun plafond de conversations ; c'est leur modèle, ils
+            vendent des agents humains en option, pas le logiciel.
+            Le compte et l'identifiant sont ceux d'avant le 28 septembre.
+            La bulle de Tawk elle-même est masquée par <ChatButton/>, qui la
+            remplace par un lanceur maison placé au-dessus de la barre
+            d'onglets — sans ça elle recouvre « Boost » et « Solde ». */}
+        <Script id="tawk-to" strategy="afterInteractive">
+          {`var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
+(function(){
+var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
+s1.async=true;
+s1.src='https://embed.tawk.to/6a4b718e4b956a1d4cbbda3c/1jsrb75an';
+s1.charset='UTF-8';
+s1.setAttribute('crossorigin','*');
+s0.parentNode.insertBefore(s1,s0);
 })();`}
         </Script>
-        <Script
-          id="tidio-chat"
-          src="https://code.tidio.co/gnlqkvlsoczuqum0ftaworkr5vpqwtmb.js"
-          strategy="afterInteractive"
-        />
       </body>
     </html>
   );
