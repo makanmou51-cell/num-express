@@ -5,7 +5,7 @@ import { Logo } from "@/components/logo";
 import { ServiceIcon } from "@/components/service-icon";
 import { InstallButton } from "@/components/install-button";
 import { HeroFond } from "@/components/hero-fond";
-import { LienFilm } from "@/components/hero-video";
+import { FilmAuDefilement } from "@/components/film-au-defilement";
 import {
   serviceLabel,
   FEATURED_SERVICES,
@@ -155,15 +155,21 @@ export default async function HomePage() {
               >
                 Acheter un numéro
               </Link>
+              {/* Trois vrais boutons, trois poids différents. Ils étaient
+                  deux liens soulignés : on ne les voyait pas comme cliquables.
+                  La hiérarchie tient maintenant à la COULEUR, pas à la forme —
+                  orange plein pour l'action qui rapporte, vert plein pour la
+                  deuxième offre, contour blanc pour la troisième. Le relief
+                  fait le reste : l'orange est le seul à être chaud. */}
               <Link
                 href={boostCta}
-                className="inline-flex min-h-[52px] items-center justify-center border-b-2 border-white/30 text-[15px] font-semibold text-white transition-colors duration-200 hover:border-white sm:justify-start sm:border-b sm:pb-1"
+                className="inline-flex min-h-[52px] items-center justify-center bg-[#059669] px-8 text-[15px] font-semibold uppercase tracking-[0.08em] text-white transition-colors duration-200 hover:bg-[#047857] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#059669]"
               >
                 Booster mes réseaux
               </Link>
               <Link
                 href={compteCta}
-                className="inline-flex min-h-[52px] items-center justify-center border-b-2 border-white/30 text-[15px] font-semibold text-white transition-colors duration-200 hover:border-white sm:justify-start sm:border-b sm:pb-1"
+                className="inline-flex min-h-[52px] items-center justify-center border border-white/45 px-8 text-[15px] font-semibold uppercase tracking-[0.08em] text-white transition-colors duration-200 hover:border-white hover:bg-white hover:text-[#06241A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
               >
                 Comptes prêts à l&apos;emploi
               </Link>
@@ -180,15 +186,41 @@ export default async function HomePage() {
               <Repere valeur="100 %" libelle="remboursé si échec" />
             </dl>
 
-            {/* Le film complet reste accessible, mais il ne dispute plus la
-                vedette a l action principale. */}
+            {/* Le film n'est plus derrière un clic : il se lance tout seul
+                plus bas, en arrivant dessus. Ce lien n'est donc qu'un
+                raccourci pour ceux qui veulent y aller tout de suite. */}
             <div className="mt-10">
-              <LienFilm />
+              <a
+                href="#film"
+                className="group inline-flex min-h-11 items-center gap-3 text-[15px] font-semibold text-white/70 transition-colors duration-200 hover:text-white"
+              >
+                <span className="flex h-9 w-9 items-center justify-center border border-white/30 transition-colors duration-200 group-hover:border-white group-hover:bg-white">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="ml-0.5 h-3.5 w-3.5 fill-current transition-colors group-hover:fill-[#06241A]"
+                    aria-hidden="true"
+                  >
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </span>
+                Voir le film
+                <span className="font-normal text-white/40">30 s</span>
+              </a>
             </div>
           </div>
 
         </section>
       </div>
+
+      {/* ───── Le film ─────
+          Placé juste après le héros : c'est le premier défilement, le moment
+          où le visiteur cherche encore à comprendre ce qu'on vend. Il démarre
+          seul, muet, et s'arrête dès qu'il sort de l'écran. */}
+      <section id="film" className="bg-[#06241A] scroll-mt-4">
+        <div className="mx-auto w-full max-w-4xl px-4 py-14 sm:px-6 sm:py-16">
+          <FilmAuDefilement />
+        </div>
+      </section>
 
       {/* ───── Preuve : chiffres + moyens de paiement ─────
           Les logos de paiement sont REMONTÉS ici (2ᵉ position). Pour un public
@@ -658,7 +690,7 @@ export default async function HomePage() {
               <p className="mt-4 max-w-xs text-sm text-muted">
                 Numéros virtuels pour recevoir vos codes SMS (Telegram, Google,
                 Instagram…), boost de réseaux sociaux (followers, likes, vues)
-                et comptes prêts à l'emploi. Paiement Mobile Money.
+                et comptes prêts à l&apos;emploi. Paiement Mobile Money.
               </p>
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {["Moov", "MTN", "Celtiis", "Visa"].map((p) => (

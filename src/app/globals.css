@@ -273,12 +273,10 @@ body {
     transform: none !important;
   }
 
-  /* Le plan de fond anime du heros : une video qui tourne en boucle est
-     exactement ce que « moins de mouvement » demande d'eviter. On la retire,
-     l'aplat de fond reste seul et le texte ne change pas d'un pixel. */
-  .ne-fond-anime {
-    display: none !important;
-  }
+  /* Le fond du heros n'est plus une video : c'est une photo et des halos,
+     qui ne bougent pas. Il n'y a donc plus rien a neutraliser ici.
+     Le film, lui, se garde tout seul : `film-au-defilement.tsx` verifie
+     prefers-reduced-motion avant de lancer quoi que ce soit. */
 
   /* Le reflet n'a aucun contenu : on le retire au lieu de le figer en travers
      de l'écran. */
