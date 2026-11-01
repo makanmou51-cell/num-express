@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { getAccountAdminStats, listAllAccountOrders } from "@/lib/admin";
 import { env } from "@/lib/env";
 import { Card } from "@/components/ui";
+import { AccountCredentials } from "@/components/account-credentials";
 import { formatXof } from "@/lib/pricing";
 import { formatWhen } from "@/lib/datetime";
 
@@ -112,32 +113,48 @@ export default async function AdminComptesPage() {
         <h2 className="mb-4 font-semibold">Dernières commandes</h2>
         {orders.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted">
-            Aucune commande de comptes pour l'instant.
+            Aucune commande de comptes pour l&apos;instant.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <ul className="min-w-[520px] divide-y">
               {orders.map((o) => (
-                <li key={o.id} className="flex items-center gap-3 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {o.productName}
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-muted">
-                      {o.user.email} · ×{o.quantity} ·{" "}
-                      {formatWhen(o.createdAt)}
-                    </p>
+                <li key={o.id} className="py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {o.productName}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-muted">
+                        {o.user.email} · ×{o.quantity} ·{" "}
+                        {formatWhen(o.createdAt)}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold">
+                      {formatXof(o.priceXof)}
+                    </span>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        STATUS_CLASS[o.status] ?? "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {STATUS_LABEL[o.status] ?? o.status}
+                    </span>
                   </div>
-                  <span className="shrink-0 text-sm font-semibold">
-                    {formatXof(o.priceXof)}
-                  </span>
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      STATUS_CLASS[o.status] ?? "bg-gray-100 text-gray-600"
-                    }`}
-                  >
-                    {STATUS_LABEL[o.status] ?? o.status}
-                  </span>
+
+                  {/* Les identifiants livrés, dépliables. Repliés par défaut :
+                      c'est l'écran admin, mais ces secrets n'ont pas à rester
+                      affichés en permanence derrière soi. */}
+                  {o.accounts && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer list-none text-xs font-medium text-primary underline underline-offset-2">
+                        Voir les identifiants livrés
+                      </summary>
+                      <div className="mt-2">
+                        <AccountCredentials accounts={o.accounts} />
+                      </div>
+                    </details>
+                  )}
                 </li>
               ))}
             </ul>

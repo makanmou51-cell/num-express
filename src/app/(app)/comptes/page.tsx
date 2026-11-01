@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { Badge, Card } from "@/components/ui";
-import { CopyButton } from "@/components/copy-button";
+import { AccountCredentials } from "@/components/account-credentials";
+import { AccountGuide } from "@/components/account-guide";
 import { formatXof } from "@/lib/pricing";
 import { formatWhen } from "@/lib/datetime";
 import { getCatalog } from "@/lib/acckit/catalog";
@@ -64,7 +65,7 @@ export default async function ComptesPage() {
       )}
       {configured && catalogError && (
         <Card className="p-5 text-sm text-muted">
-          Le catalogue ne répond pas pour l'instant. Réessaie dans quelques
+          Le catalogue ne répond pas pour l&apos;instant. Réessaie dans quelques
           minutes.
         </Card>
       )}
@@ -79,7 +80,7 @@ export default async function ComptesPage() {
         <h2 className="text-lg font-semibold">Mes commandes de comptes</h2>
         {orders.length === 0 ? (
           <Card className="p-5 text-sm text-muted">
-            Aucune commande pour l'instant.
+            Aucune commande pour l&apos;instant.
           </Card>
         ) : (
           orders.map((o) => (
@@ -110,26 +111,18 @@ export default async function ComptesPage() {
               {o.status === "CHECK" && (
                 <p className="text-xs text-muted">
                   Vérification en cours auprès du fournisseur. Aucun débit tant
-                  que la commande n'est pas confirmée.
+                  que la commande n&apos;est pas confirmée.
                 </p>
               )}
 
-              {/* Identifiants = secrets du client : masqués des enregistrements
-                  de session, comme les codes SMS. */}
+              {/* Identifiants = secrets du client : étiquetés, masqués par
+                  défaut, et tenus hors des enregistrements de session (comme
+                  les codes SMS) par data-clarity-mask dans le composant. */}
               {o.accounts && (
-                <div className="space-y-2" data-clarity-mask="true">
-                  {o.accounts.split("\n").map((line, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-2 rounded-lg border border-border bg-gray-50 p-2"
-                    >
-                      <code className="min-w-0 flex-1 break-all font-mono text-xs">
-                        {line}
-                      </code>
-                      <CopyButton value={line} />
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <AccountCredentials accounts={o.accounts} />
+                  <AccountGuide />
+                </>
               )}
             </Card>
           ))
