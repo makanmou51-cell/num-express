@@ -7,6 +7,7 @@ import { MobileNav } from "@/components/mobile-nav";
 import { BottomNav } from "@/components/bottom-nav";
 import { InstallButton } from "@/components/install-button";
 import { IconLogout } from "@/components/icons";
+import { TawkIdentity } from "@/components/tawk-identity";
 import { formatXof } from "@/lib/pricing";
 
 // Pas d'emoji dans un libellé de navigation : il dépend de la police du
@@ -33,6 +34,14 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
+      {/* Donne un nom, un e-mail et un solde aux conversations Tawk : sans ça
+          le support ne voit que « Visitor 48293 ». Rendu seulement ici, dans
+          l'espace connecté, donc jamais pour un visiteur anonyme. */}
+      <TawkIdentity
+        email={user.email}
+        name={user.name}
+        soldeLabel={balanceLabel}
+      />
       <header className="sticky top-0 z-30 border-b bg-white">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link href="/dashboard">
