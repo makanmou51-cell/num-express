@@ -20,18 +20,6 @@ import { cn } from "@/lib/utils";
 const PRESETS = [500, 3000, 5000, 10000, 20000];
 const MIN = 200;
 
-/** Ce que le montant permet d'acheter, écrit sous la touche. */
-function ceQueCaAchete(
-  montant: number,
-  prix: { min: number; median: number } | null,
-): string {
-  if (!prix) return "";
-  if (montant < prix.min) return "Boost uniquement";
-  const n = Math.floor(montant / prix.median);
-  if (n < 1) return "1 numéro";
-  return `${n} numéro${n > 1 ? "s" : ""}`;
-}
-
 /**
  * Formulaire de recharge Mobile Money.
  *
@@ -49,11 +37,8 @@ function ceQueCaAchete(
  *    en haut de page. Il est désormais désactivé et le dit.
  */
 export function TopupForm({
-  prix,
   suggere,
 }: {
-  /** Fourchette réelle des prix, mesurée sur les ventes. */
-  prix: { min: number; median: number } | null;
   /** Montant manquant, transmis depuis l'écran d'achat. */
   suggere?: number;
 }) {
@@ -78,21 +63,14 @@ export function TopupForm({
         <p id="topup-amount-label" className="block text-sm font-medium">
           Combien voulez-vous recharger&nbsp;?
         </p>
-        {/* L'information la plus utile de l'écran, et elle n'y figurait pas :
-            le client choisissait un montant sans savoir ce que coûte ce
-            qu'il est venu acheter. */}
-        {prix && (
-          <p className="mb-2 mt-0.5 text-xs text-muted">
-            Un numéro coûte entre{" "}
-            <strong className="text-foreground">{formatXof(prix.min)}</strong>{" "}
-            et{" "}
-            <strong className="text-foreground">
-              {formatXof(prix.median * 2)}
-            </strong>{" "}
-            selon le pays. Le Boost démarre à 35 F.
-          </p>
-        )}
-        {!prix && <div className="mb-2" />}
+        {/* Plus de fourchette chiffrée ici : elle variait selon le pays et
+            faisait fuir (un maximum vers 8 500 F, affiché sur l'écran même où
+            l'on fait entrer son argent). On ne garde que le plancher du Boost,
+            qui rassure sans engager un prix. */}
+        <p className="mb-2 mt-0.5 text-xs text-muted">
+          Le Boost démarre à 35 F. Le prix d&apos;un numéro dépend du pays
+          choisi.
+        </p>
         <div
           role="radiogroup"
           aria-labelledby="topup-amount-label"
@@ -100,7 +78,6 @@ export function TopupForm({
         >
           {PRESETS.map((p) => {
             const on = !custom && amount === p;
-            const achete = ceQueCaAchete(p, prix);
             return (
               <button
                 key={p}
@@ -122,19 +99,6 @@ export function TopupForm({
                   <IconCheck className="absolute right-1.5 top-1.5 h-4 w-4" />
                 )}
                 <span className="block">{p.toLocaleString("fr-FR")}</span>
-                {/* La ligne qui manquait : le client venait d'une publicité
-                    sur les numéros et n'avait aucun moyen de savoir que son
-                    montant n'en achetait aucun. */}
-                {achete && (
-                  <span
-                    className={cn(
-                      "mt-0.5 block text-[10px] font-medium leading-tight",
-                      on ? "text-primary-foreground/80" : "text-muted",
-                    )}
-                  >
-                    {achete}
-                  </span>
-                )}
               </button>
             );
           })}

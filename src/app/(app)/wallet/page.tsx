@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { listTransactions, numberPriceRange } from "@/lib/wallet";
+import { listTransactions } from "@/lib/wallet";
 import { reconcilePendingTopups } from "@/lib/payments";
 import { Alert, Card } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
@@ -37,10 +37,7 @@ export default async function WalletPage({
   });
   const balance = fresh?.balance ?? user.balance;
 
-  const [txs, prix] = await Promise.all([
-    listTransactions(user.id, 30),
-    numberPriceRange(),
-  ]);
+  const txs = await listTransactions(user.id, 30);
   // Recharge en attente la plus récente : sert de clé au compteur de
   // vérifications, pour qu'un nouveau paiement reparte de zéro.
   const pendingId =
@@ -76,7 +73,7 @@ export default async function WalletPage({
 
           <Card className="p-6">
             <h2 className="mb-3 font-semibold">Recharger</h2>
-            <TopupForm prix={prix} suggere={suggere} />
+            <TopupForm suggere={suggere} />
           </Card>
         </div>
 
