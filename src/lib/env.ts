@@ -170,7 +170,7 @@ export const env = {
     // Combien de VND (dong) pour 1 F CFA : AccKit facture en VND.
     vndPerXof: num("ACCKIT_VND_PER_XOF", 42),
     // Bénéfice fixe par compte vendu (F CFA), ajouté au coût converti.
-    profitXof: num("ACCKIT_PROFIT_XOF", 2500),
+    profitXof: num("ACCKIT_PROFIT_XOF", 3000),
   },
 
   // ── Affiliation ──
