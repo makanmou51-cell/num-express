@@ -3,11 +3,10 @@ import { env } from "@/lib/env";
 import { acckit, type AccProduct } from "./client";
 
 /**
- * Catalogue AccKit, FILTRÉ et CLASSÉ pour la vente : on ne vend que TikTok,
- * Facebook Europe (France, Allemagne, Royaume-Uni, autres pays UE) et
- * Instagram. Les ~30 autres catégories AccKit (clones divers, phone farming,
- * comptes AI...) sont masquées — un catalogue court et clair plutôt que 356
- * produits où le client se perd.
+ * Catalogue AccKit, FILTRÉ selon la sélection demandée : TikTok US uniquement
+ * (les produits Japon/Vietnam de la catégorie sont exclus), Facebook clones
+ * « FB 1000X - 61xx » et « Clone Instagram ». Les ~30 autres catégories
+ * AccKit sont masquées.
  *
  * Cache 5 min (la doc recommande une synchro toutes les 5-10 min). Stock à
  * 0 = produit masqué par AccKit, donc par nous. En cas de panne AccKit on
@@ -15,13 +14,18 @@ import { acckit, type AccProduct } from "./client";
  */
 
 /* Ordre d'affichage = ordre de cette liste. categoryIds = IDs AccKit. */
-const SECTIONS: { label: string; categoryIds: number[] }[] = [
-  { label: "TikTok", categoryIds: [328] },
-  { label: "Facebook — France", categoryIds: [217] },
-  { label: "Facebook — Allemagne", categoryIds: [216] },
-  { label: "Facebook — Royaume-Uni", categoryIds: [218] },
-  { label: "Facebook — Europe (autres pays)", categoryIds: [3] },
-  { label: "Instagram", categoryIds: [215, 327] },
+const SECTIONS: {
+  label: string;
+  categoryIds: number[];
+  filter?: (p: AccProduct) => boolean;
+}[] = [
+  {
+    label: "TikTok US",
+    categoryIds: [328],
+    filter: (p) => /\bUS\b|USA/i.test(p.name ?? ""),
+  },
+  { label: "Facebook — Clones 1000X / 61xx", categoryIds: [236] },
+  { label: "Instagram — Clones", categoryIds: [327] },
 ];
 
 export interface CatalogProduct extends AccProduct {
@@ -56,6 +60,7 @@ export async function getCatalog(force = false): Promise<CatalogSection[]> {
       products: s.categoryIds
         .flatMap((id) => byId.get(id)?.list_product ?? [])
         .filter((p) => p.quantity > 0)
+        .filter((p) => (s.filter ? s.filter(p) : true))
         .map((p) => ({
           ...p,
           price: Number(p.price) || 0,

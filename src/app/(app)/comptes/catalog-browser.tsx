@@ -30,9 +30,9 @@ export interface BrowserSection {
 
 /** Logo du réseau, déduit du nom de section (les labels viennent de catalog.ts). */
 function iconFor(label: string): string {
-  if (label.startsWith("Facebook")) return "fb";
-  if (label === "Instagram") return "ig";
-  if (label === "TikTok") return "lf";
+  if (label.startsWith("Facebook") || label.startsWith("FB")) return "fb";
+  if (label.includes("Instagram")) return "ig";
+  if (label.startsWith("TikTok")) return "lf";
   return "ot";
 }
 
