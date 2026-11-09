@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { listTransactions } from "@/lib/wallet";
-import { reconcilePendingTopups } from "@/lib/payments";
+import { reconcilePendingTopups, getCheckoutProviders } from "@/lib/payments";
 import { Alert, Card } from "@/components/ui";
 import { formatXof } from "@/lib/pricing";
 import { TrackOnce } from "@/components/track-once";
@@ -73,7 +73,7 @@ export default async function WalletPage({
 
           <Card className="p-6">
             <h2 className="mb-3 font-semibold">Recharger</h2>
-            <TopupForm suggere={suggere} />
+            <TopupForm suggere={suggere} providers={getCheckoutProviders()} />
           </Card>
         </div>
 

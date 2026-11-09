@@ -107,10 +107,14 @@ export async function topupAction(
   }
 
   const phone = String(formData.get("phone") ?? "").trim() || undefined;
+  // Moyen de paiement choisi par le client (BKApay, LeekPay…). Validé plus bas
+  // par startTopup contre la liste des prestataires réellement proposés.
+  const provider = String(formData.get("provider") ?? "").trim() || undefined;
 
   let url: string;
   try {
-    url = (await startTopup(user, parsed.data.amount, phone)).paymentUrl;
+    url = (await startTopup(user, parsed.data.amount, phone, provider))
+      .paymentUrl;
   } catch (e) {
     return {
       error: `Impossible d'initier le paiement : ${(e as Error).message}`,

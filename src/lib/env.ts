@@ -190,7 +190,21 @@ export const env = {
 
   // ── Paiement ──
   payment: {
-    provider: str("PAYMENT_PROVIDER", "manual"), // moneyfusion | leekpay | fedapay | manual
+    provider: str("PAYMENT_PROVIDER", "manual"), // bkapay | leekpay | fedapay | moneyfusion | manual
+    // Prestataires PROPOSÉS au client au moment de recharger (il choisit).
+    // Liste ordonnée, séparée par des virgules : le premier est le défaut.
+    // Vide -> on se rabat sur `provider` seul. Ex : "bkapay,leekpay".
+    providers: list("PAYMENT_PROVIDERS"),
+    bkapay: {
+      // Clé privée payin (sk_payin_live_…) : crée les sessions côté serveur.
+      secretKey: str("BKAPAY_SECRET_KEY"),
+      // Clé publique (pk_live_…) : redirection côté navigateur. Non requise ici.
+      publicKey: str("BKAPAY_PUBLIC_KEY"),
+      // Secret de signature payin (cs_…, HMAC-SHA256) pour vérifier le webhook.
+      webhookSecret: str("BKAPAY_WEBHOOK_SECRET"),
+      baseUrl: str("BKAPAY_BASE_URL", "https://bkapay.com"),
+      currency: str("BKAPAY_CURRENCY", "XOF"),
+    },
     moneyfusion: {
       // URL de l'API de paiement du marchand (tableau de bord MoneyFusion).
       apiUrl: str("MONEYFUSION_API_URL"),

@@ -36,11 +36,16 @@ const MIN = 200;
  * 3. Il restait cliquable sans montant, pour ne renvoyer qu'une erreur rouge
  *    en haut de page. Il est désormais désactivé et le dit.
  */
+type CheckoutProvider = { name: string; label: string; hint: string };
+
 export function TopupForm({
   suggere,
+  providers = [],
 }: {
   /** Montant manquant, transmis depuis l'écran d'achat. */
   suggere?: number;
+  /** Moyens de paiement proposés. S'il y en a plusieurs, le client choisit. */
+  providers?: CheckoutProvider[];
 }) {
   /* Si le client arrive depuis « Il vous manque 3 700 F », la somme est déjà
      là. Avant, elle était perdue : il repartait d'une page vide et devait
@@ -48,6 +53,8 @@ export function TopupForm({
   const preselection = suggere && PRESETS.includes(suggere) ? suggere : "";
   const [amount, setAmount] = useState<number | "">(suggere ?? "");
   const [custom, setCustom] = useState(Boolean(suggere) && !preselection);
+  // Moyen de paiement choisi (le premier proposé par défaut).
+  const [method, setMethod] = useState(providers[0]?.name ?? "");
   const [state, formAction] = useActionState<ActionState, FormData>(
     topupAction,
     undefined,
@@ -164,6 +171,59 @@ export function TopupForm({
           autoComplete="tel"
         />
       </div>
+
+      {/* Choix du moyen de paiement — affiché seulement s'il y en a plusieurs.
+          Le moyen choisi part avec le formulaire (champ caché), toujours. */}
+      {providers.length > 1 && (
+        <div>
+          <p id="topup-method-label" className="block text-sm font-medium">
+            Moyen de paiement
+          </p>
+          <div
+            role="radiogroup"
+            aria-labelledby="topup-method-label"
+            className="mt-2 space-y-2"
+          >
+            {providers.map((p) => {
+              const on = method === p.name;
+              return (
+                <button
+                  key={p.name}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setMethod(p.name)}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-xl border-2 px-4 py-3 text-left transition-colors",
+                    on
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-white active:bg-gray-100",
+                  )}
+                >
+                  <span>
+                    <span className="block font-semibold">{p.label}</span>
+                    {p.hint && (
+                      <span className="block text-xs text-muted">{p.hint}</span>
+                    )}
+                  </span>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
+                      on ? "border-primary" : "border-gray-300",
+                    )}
+                  >
+                    {on && (
+                      <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <input type="hidden" name="provider" value={method} />
 
       <SubmitButton
         size="lg"

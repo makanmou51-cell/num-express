@@ -4,30 +4,134 @@ import { env } from "@/lib/env";
 import { moneyfusionProvider } from "@/lib/payments/moneyfusion";
 import { leekpayProvider } from "@/lib/payments/leekpay";
 import { fedapayProvider } from "@/lib/payments/fedapay";
+import { bkapayProvider } from "@/lib/payments/bkapay";
 import { manualProvider } from "@/lib/payments/manual";
 import type { PaymentProvider } from "@/lib/payments/types";
 
+/**
+ * Catalogue des prestataires. Le site peut en proposer PLUSIEURS à la fois (le
+ * client choisit au moment de recharger) : c'est pour ça que l'aiguillage n'est
+ * plus un simple « un seul provider actif ».
+ *
+ * - `configured` : a-t-on les clés nécessaires pour créer ET vérifier une
+ *   charge ? Un prestataire non configuré n'est jamais proposé.
+ * - `label`/`hint` : ce qu'on affiche au client quand il y a le choix.
+ */
+type ProviderEntry = {
+  provider: PaymentProvider;
+  configured: () => boolean;
+  label: string;
+  hint: string;
+};
+
+const CATALOG: Record<string, ProviderEntry> = {
+  bkapay: {
+    provider: bkapayProvider,
+    configured: () => Boolean(env.payment.bkapay.secretKey),
+    label: "MTN & Moov Money",
+    hint: "Recommandé",
+  },
+  leekpay: {
+    provider: leekpayProvider,
+    configured: () => Boolean(env.payment.leekpay.secretKey),
+    label: "Orange Money & autres",
+    hint: "Via LeekPay",
+  },
+  fedapay: {
+    provider: fedapayProvider,
+    configured: () => Boolean(env.payment.fedapay.secretKey),
+    label: "FedaPay",
+    hint: "MTN, Moov, carte",
+  },
+  moneyfusion: {
+    provider: moneyfusionProvider,
+    configured: () => Boolean(env.payment.moneyfusion.apiUrl),
+    label: "Mobile Money",
+    hint: "Via MoneyFusion",
+  },
+  manual: {
+    provider: manualProvider,
+    // Jamais « configuré » en production : interdit le crédit gratuit.
+    configured: () => process.env.NODE_ENV !== "production",
+    label: "Simulation (dev)",
+    hint: "",
+  },
+};
+
+/**
+ * Noms des prestataires proposés au client, dans l'ordre, dédupliqués et
+ * filtrés sur ceux RÉELLEMENT configurés. Source : `PAYMENT_PROVIDERS` (liste),
+ * sinon `PAYMENT_PROVIDER` seul (rétro-compatible).
+ */
+function enabledProviderNames(): string[] {
+  const names = env.payment.providers.length
+    ? env.payment.providers
+    : [env.payment.provider];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of names) {
+    const name = raw.toLowerCase();
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const entry = CATALOG[name];
+    if (entry && entry.configured()) out.push(name);
+  }
+  return out;
+}
+
+/** Liste pour l'écran de recharge (le client choisit son moyen de paiement). */
+export function getCheckoutProviders(): {
+  name: string;
+  label: string;
+  hint: string;
+}[] {
+  return enabledProviderNames().map((name) => ({
+    name,
+    label: CATALOG[name].label,
+    hint: CATALOG[name].hint,
+  }));
+}
+
+/** Prestataire par défaut : le premier proposé. Fail-closed en production. */
 export function getPaymentProvider(): PaymentProvider {
+  const enabled = enabledProviderNames();
+  if (enabled.length) return CATALOG[enabled[0]].provider;
+  // Aucun prestataire configuré. En production, on n'autorise JAMAIS le repli
+  // silencieux sur « manual » (crédit gratuit) -> fail-closed.
   if (
-    env.payment.provider === "moneyfusion" &&
-    env.payment.moneyfusion.apiUrl
+    process.env.NODE_ENV === "production" &&
+    env.payment.provider !== "manual"
   ) {
-    return moneyfusionProvider;
-  }
-  if (env.payment.provider === "leekpay" && env.payment.leekpay.secretKey) {
-    return leekpayProvider;
-  }
-  if (env.payment.provider === "fedapay" && env.payment.fedapay.secretKey) {
-    return fedapayProvider;
-  }
-  // En production, on n'autorise JAMAIS le repli silencieux sur le provider
-  // « manual » (crédit gratuit) à cause d'une clé manquante -> fail-closed.
-  if (process.env.NODE_ENV === "production" && env.payment.provider !== "manual") {
     throw new Error(
       `Prestataire de paiement '${env.payment.provider}' mal configuré (clés manquantes).`,
     );
   }
   return manualProvider;
+}
+
+/**
+ * Résout le prestataire CHOISI par le client, validé contre la liste des
+ * prestataires proposés (un nom non proposé est ignoré -> pas d'injection).
+ * Repli sûr sur le prestataire par défaut.
+ */
+function resolveProvider(name?: string): PaymentProvider {
+  const wanted = (name ?? "").toLowerCase();
+  if (wanted && enabledProviderNames().includes(wanted)) {
+    return CATALOG[wanted].provider;
+  }
+  return getPaymentProvider();
+}
+
+/**
+ * Retrouve le prestataire d'une transaction d'après son champ `provider`
+ * (ex "BKAPAY"), pour la réconciliation. Null si inconnu ou plus configuré :
+ * on ne touche alors pas à la transaction (on ne sait pas la vérifier).
+ */
+function providerByStoredName(stored: string | null): PaymentProvider | null {
+  if (!stored) return null;
+  const entry = CATALOG[stored.toLowerCase()];
+  if (!entry || !entry.configured()) return null;
+  return entry.provider;
 }
 
 /**
@@ -38,8 +142,9 @@ export async function startTopup(
   user: { id: string; email: string; name: string | null; balance: number },
   amountXof: number,
   phone?: string,
+  providerName?: string,
 ): Promise<{ paymentUrl: string }> {
-  const provider = getPaymentProvider();
+  const provider = resolveProvider(providerName);
 
   // 1) Transaction locale PENDING (le solde n'est crédité qu'à la confirmation).
   const tx = await prisma.transaction.create({
@@ -133,16 +238,16 @@ async function settlePendingTopup(
 }
 
 export async function reconcilePendingTopups(userId: string): Promise<number> {
-  const provider = getPaymentProvider();
-  if (!provider.fetchChargeStatus) return 0;
-
   const since = new Date(Date.now() - RECONCILE_WINDOW_MS);
+  // On ne filtre PLUS sur un seul prestataire : avec deux moyens de paiement
+  // proposés, une recharge BKApay ET une recharge LeekPay peuvent être en
+  // attente en même temps. On réconcilie chacune via SON propre prestataire,
+  // lu sur la transaction (champ `provider`).
   const pending = await prisma.transaction.findMany({
     where: {
       userId,
       type: "TOPUP",
       status: "PENDING",
-      provider: provider.name.toUpperCase(),
       providerRef: { not: null },
       createdAt: { gte: since },
     },
@@ -155,7 +260,12 @@ export async function reconcilePendingTopups(userId: string): Promise<number> {
   for (const tx of pending) {
     // On n'immobilise JAMAIS l'affichage du solde : le cron reprend le reste.
     if (Date.now() > deadline) break;
-    if ((await settlePendingTopup(provider, tx, { expectedUserId: userId })) === "credited") {
+    const provider = providerByStoredName(tx.provider);
+    if (!provider || !provider.fetchChargeStatus) continue;
+    if (
+      (await settlePendingTopup(provider, tx, { expectedUserId: userId })) ===
+      "credited"
+    ) {
       credited++;
     }
   }
@@ -175,17 +285,16 @@ export async function sweepPendingTopups(limit = 150): Promise<{
   expired: number;
   errors: number;
 }> {
-  const provider = getPaymentProvider();
   const out = { checked: 0, credited: 0, failed: 0, expired: 0, errors: 0 };
-  if (!provider.fetchChargeStatus) return out;
 
   const staleBefore = new Date(Date.now() - TOPUP_STALE_MS);
 
+  // Toutes les recharges en attente, TOUS prestataires confondus : chacune est
+  // vérifiée via le prestataire inscrit sur la transaction.
   const pending = await prisma.transaction.findMany({
     where: {
       type: "TOPUP",
       status: "PENDING",
-      provider: provider.name.toUpperCase(),
       providerRef: { not: null },
     },
     orderBy: { createdAt: "desc" },
@@ -194,6 +303,19 @@ export async function sweepPendingTopups(limit = 150): Promise<{
 
   for (const tx of pending) {
     out.checked++;
+    const provider = providerByStoredName(tx.provider);
+    if (!provider || !provider.fetchChargeStatus) {
+      // Prestataire inconnu / plus configuré : invérifiable. On ne clôt que si
+      // la recharge est vieille de +24 h, pour que le grand-livre converge.
+      if (tx.createdAt < staleBefore) {
+        const claim = await prisma.transaction.updateMany({
+          where: { id: tx.id, status: "PENDING" },
+          data: { status: "FAILED" },
+        });
+        if (claim.count > 0) out.expired++;
+      }
+      continue;
+    }
     const r = await settlePendingTopup(provider, tx);
     if (r === "credited") out.credited++;
     else if (r === "failed") out.failed++;
