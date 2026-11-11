@@ -18,6 +18,7 @@ export interface AppSettings {
   minStockCount: number; // stock minimum pour proposer un pays
   minProviderStock: number; // stock minimum pour cibler un fournisseur
   commissionRate: number; // 0..1
+  referralBonusXof: number; // bonus de bienvenue filleul (0 = désactivé)
 }
 
 export const SETTING_KEYS: (keyof AppSettings)[] = [
@@ -35,6 +36,7 @@ export const SETTING_KEYS: (keyof AppSettings)[] = [
   "minStockCount",
   "minProviderStock",
   "commissionRate",
+  "referralBonusXof",
 ];
 
 function defaults(): AppSettings {
@@ -53,6 +55,7 @@ function defaults(): AppSettings {
     minStockCount: env.pricing.minStockCount,
     minProviderStock: env.pricing.minProviderStock,
     commissionRate: env.affiliate.commissionRate,
+    referralBonusXof: env.affiliate.welcomeBonusXof,
   };
 }
 
@@ -88,6 +91,7 @@ export async function getSettings(): Promise<AppSettings> {
     minStockCount: pick("minStockCount"),
     minProviderStock: pick("minProviderStock"),
     commissionRate: pick("commissionRate"),
+    referralBonusXof: pick("referralBonusXof"),
   };
   cache = { at: Date.now(), data };
   return data;

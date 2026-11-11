@@ -41,6 +41,7 @@ export async function registerAction(
     email: formData.get("email"),
     password: formData.get("password"),
     ref: formData.get("ref") ?? undefined,
+    heard: formData.get("heard") ?? undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Données invalides" };
@@ -81,6 +82,17 @@ export async function registerAction(
        empecher de vendre. */
   }
 
+  /* Priorite : une source MESUREE (utm/referent) prime, car elle ne se declare
+     pas et ne se trompe pas. Mais « direct » = absence de referent : dans ce
+     cas la reponse DECLAREE du client (« WhatsApp », « un ami »...) est bien
+     plus utile. C'est elle qui rattrape le bouche-a-oreille WhatsApp, invisible
+     a la mesure auto. */
+  const declaree = parsed.data.heard ? parsed.data.heard.slice(0, 20) : null;
+  const source =
+    provenance && provenance !== "direct"
+      ? provenance
+      : (declaree ?? provenance);
+
   const user = await prisma.user.create({
     data: {
       email,
@@ -91,9 +103,9 @@ export async function registerAction(
       // Le rôle n'est JAMAIS dérivé de l'e-mail à l'inscription (anti-takeover).
       // La promotion admin ne se fait qu'à la connexion, après vérification e-mail.
       role: "USER",
-      /* D'ou vient ce client. Pose par SuiviSource a la premiere page vue ;
-         absent si les cookies sont bloques, ce qui reste sans consequence. */
-      source: provenance,
+      /* D'ou vient ce client : source mesuree (utm/referent) ou, a defaut, sa
+         reponse declaree a l'inscription. */
+      source,
     },
     select: { id: true, email: true },
   });

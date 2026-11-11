@@ -125,7 +125,8 @@ export function AuthForm({
           <>
             <input type="hidden" name="ref" value={referral} />
             <Alert variant="success">
-              Vous avez été parrainé · code {referral}
+              Vous avez été parrainé · code {referral} — un bonus de bienvenue
+              vous attend dès votre première recharge.
             </Alert>
           </>
         )}
@@ -139,6 +140,33 @@ export function AuthForm({
               autoComplete="name"
               placeholder="Votre nom"
             />
+          </div>
+        )}
+
+        {/* « Où nous avez-vous connu ? » — une seule chose à toucher, mais qui
+            nous dit enfin où faire la promotion. La mesure automatique ne voit
+            pas le bouche-à-oreille WhatsApp : cette réponse la complète. */}
+        {isRegister && (
+          <div>
+            <Label htmlFor="heard">Où nous avez-vous connu&nbsp;?</Label>
+            <select
+              id="heard"
+              name="heard"
+              required
+              defaultValue=""
+              className="h-12 w-full rounded-xl border border-border bg-white px-3 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="" disabled>
+                — Choisissez —
+              </option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="instagram">Instagram</option>
+              <option value="tiktok">TikTok</option>
+              <option value="facebook">Facebook</option>
+              <option value="google">Google / recherche</option>
+              <option value="ami">Un ami (bouche-à-oreille)</option>
+              <option value="autre">Autre</option>
+            </select>
           </div>
         )}
 

@@ -177,6 +177,9 @@ export const env = {
   affiliate: {
     // Part de chaque achat d'un filleul reversée au parrain (0..1).
     commissionRate: num("AFFILIATE_COMMISSION_RATE", 0.1),
+    // Bonus de bienvenue versé au FILLEUL à sa 1re recharge (0 = désactivé).
+    // Petit par défaut : la marge est ~4 000 F/vente, un bonus trop gros la mange.
+    welcomeBonusXof: num("AFFILIATE_WELCOME_BONUS_XOF", 250),
   },
 
   // ── E-mail ──

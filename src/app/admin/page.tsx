@@ -119,7 +119,7 @@ export default async function AdminHome() {
             <tbody className="divide-y">
               {sources.map((p) => (
                 <tr key={p.source}>
-                  <td className="py-2.5 font-medium">{p.source}</td>
+                  <td className="py-2.5 font-medium">{joliSource(p.source)}</td>
                   <td className="py-2.5 text-right tabular-nums">{p.inscrits}</td>
                   <td className="py-2.5 text-right tabular-nums">{p.clients}</td>
                   <td className="py-2.5 text-right font-semibold tabular-nums">
@@ -256,6 +256,29 @@ function ActivityCard({
       )}
     </Card>
   );
+}
+
+/* Étiquette lisible pour la provenance. Les valeurs stockées sont des codes
+   courts (« whatsapp », « ami », « direct »…) mélangeant la mesure auto et la
+   réponse déclarée à l'inscription — on les rend présentables sans les perdre. */
+const SOURCE_LABELS: Record<string, string> = {
+  whatsapp: "WhatsApp",
+  instagram: "Instagram",
+  facebook: "Facebook / Meta",
+  tiktok: "TikTok",
+  google: "Google",
+  twitter: "X / Twitter",
+  youtube: "YouTube",
+  telegram: "Telegram",
+  snapchat: "Snapchat",
+  linkedin: "LinkedIn",
+  ami: "Bouche-à-oreille (ami)",
+  autre: "Autre",
+  direct: "Direct (URL tapée)",
+};
+
+function joliSource(source: string): string {
+  return SOURCE_LABELS[source] ?? source;
 }
 
 function Tile({

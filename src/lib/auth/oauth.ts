@@ -19,6 +19,9 @@ export async function loginWithVerifiedEmail(opts: {
   email: string;
   name: string | null;
   ref?: string;
+  /** Provenance mesuree (cookie ne_src) : Google n'a pas de formulaire, donc
+      pas de reponse declaree — on garde au moins la source auto. */
+  source?: string;
 }): Promise<void> {
   const email = opts.email.trim().toLowerCase();
 
@@ -46,6 +49,7 @@ export async function loginWithVerifiedEmail(opts: {
         referralCode,
         referredById,
         role: "USER",
+        source: opts.source ?? null,
       },
       select: {
         id: true,

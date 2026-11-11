@@ -10,7 +10,12 @@ export class InsufficientFundsError extends Error {
 }
 
 export type TxType =
-  "TOPUP" | "PURCHASE" | "REFUND" | "ADJUSTMENT" | "REFERRAL";
+  | "TOPUP"
+  | "PURCHASE"
+  | "REFUND"
+  | "ADJUSTMENT"
+  | "REFERRAL"
+  | "REFERRAL_BONUS";
 
 export interface ApplyTxOptions {
   userId: string;

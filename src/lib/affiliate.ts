@@ -76,6 +76,51 @@ export async function payReferralCommission(
   });
 }
 
+/**
+ * Bonus de bienvenue versé AU FILLEUL (le nouveau), une seule fois, après sa
+ * PREMIÈRE recharge réussie. C'est le côté « gagnant-gagnant » du parrainage :
+ * sans récompense pour le filleul, le lien n'a aucune raison d'être partagé.
+ *
+ * Déclenché sur une recharge CRÉDITÉE (argent réellement entré) → un faux
+ * compte ne peut pas farmer le bonus sans payer. Idempotent par `providerRef`
+ * unique : même deux appels concurrents ne créditent qu'une fois.
+ * Best-effort : ne doit jamais interrompre une recharge.
+ */
+export async function grantReferralWelcomeBonus(userId: string): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { referredById: true },
+  });
+  // Réservé aux filleuls (arrivés par un lien de parrainage).
+  if (!user?.referredById) return;
+
+  const { referralBonusXof } = await getSettings();
+  if (referralBonusXof <= 0) return;
+
+  // Idempotence (chemin rapide) : un seul bonus par filleul, à vie.
+  const already = await prisma.transaction.findFirst({
+    where: { userId, type: "REFERRAL_BONUS" },
+    select: { id: true },
+  });
+  if (already) return;
+
+  try {
+    await applyWalletTx({
+      userId,
+      type: "REFERRAL_BONUS",
+      amount: referralBonusXof,
+      provider: "INTERNAL",
+      // Clé unique = garde-fou anti double-versement même en cas de course.
+      providerRef: `welcomebonus_${userId}`,
+      description: "Bonus de bienvenue (parrainage)",
+    });
+  } catch (e) {
+    // Violation d'unicité = bonus déjà versé par un appel concurrent : OK.
+    const msg = (e as Error).message ?? "";
+    if (!/unique|P2002/i.test(msg)) throw e;
+  }
+}
+
 export interface AffiliateStats {
   referralsCount: number;
   totalEarned: number;

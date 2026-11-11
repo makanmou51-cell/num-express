@@ -162,6 +162,51 @@ export default async function DashboardPage({
         />
       </div>
 
+      {/* Parrainage — canal de croissance le moins cher et le moins risqué.
+          Mis en avant ICI parce que la page /affiliate était invisible :
+          personne ne la trouvait, donc personne ne partageait. */}
+      <Link
+        href="/affiliate"
+        className="flex items-center gap-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 transition-colors hover:bg-primary/10 active:bg-primary/15"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="8" width="18" height="4" rx="1" />
+            <path d="M12 8v13M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7" />
+            <path d="M12 8S10.5 3 8 3a2 2 0 0 0 0 4h4zM12 8s1.5-5 4-5a2 2 0 0 1 0 4h-4z" />
+          </svg>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold">
+            Parraine tes amis, gagne de l&apos;argent
+          </span>
+          <span className="block text-sm text-muted">
+            Tu gagnes sur chacun de leurs achats — partage ton lien en 1 clic.
+          </span>
+        </span>
+        <svg
+          viewBox="0 0 24 24"
+          className="h-5 w-5 shrink-0 text-muted"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="m9 6 6 6-6 6" />
+        </svg>
+      </Link>
+
       <Card className="p-5">
         <RecentActivations
           activations={recent.map((a) => ({

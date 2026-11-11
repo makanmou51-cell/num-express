@@ -6,6 +6,7 @@ import { leekpayProvider } from "@/lib/payments/leekpay";
 import { fedapayProvider } from "@/lib/payments/fedapay";
 import { bkapayProvider } from "@/lib/payments/bkapay";
 import { manualProvider } from "@/lib/payments/manual";
+import { grantReferralWelcomeBonus } from "@/lib/affiliate";
 import type { PaymentProvider } from "@/lib/payments/types";
 
 /**
@@ -356,7 +357,8 @@ export async function confirmTopup(
   approved: boolean,
   opts: { paidXof?: number; expectedUserId?: string } = {},
 ): Promise<{ status: "credited" | "already" | "failed" | "unknown" }> {
-  return prisma.$transaction(async (db) => {
+  let creditedUserId: string | null = null;
+  const result = await prisma.$transaction(async (db) => {
     const tx = await db.transaction.findUnique({ where: { providerRef } });
     if (!tx || tx.type !== "TOPUP") return { status: "unknown" as const };
     // Anti-IDOR : un appel initié par un utilisateur ne confirme que SES recharges.
@@ -410,6 +412,23 @@ export async function confirmTopup(
       where: { id: tx.id },
       data: { amount: creditAmount, balanceAfter: updated.balance },
     });
+    creditedUserId = tx.userId;
     return { status: "credited" as const };
   });
+
+  /* Bonus de bienvenue au filleul — APRÈS le commit (applyWalletTx ouvre sa
+     propre transaction) et hors du chemin critique : best-effort, idempotent,
+     une recharge ne doit jamais échouer à cause d'un bonus. */
+  if (result.status === "credited" && creditedUserId) {
+    try {
+      await grantReferralWelcomeBonus(creditedUserId);
+    } catch (e) {
+      console.error(
+        "[referral] bonus de bienvenue échoué",
+        creditedUserId,
+        (e as Error).message,
+      );
+    }
+  }
+  return result;
 }

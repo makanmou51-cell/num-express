@@ -19,7 +19,12 @@ export default async function AffiliatePage() {
 
   const link = `${env.appUrl}/register?ref=${user.referralCode}`;
   const pct = Math.round(settings.commissionRate * 100);
-  const shareText = `Salut ! Sur num express tu achètes un numéro virtuel et tu reçois ton code SMS (Telegram, Google, Instagram…) en quelques secondes, payé en Mobile Money. Inscris-toi ici : ${link}`;
+  const bonus = settings.referralBonusXof;
+  const bonusPhrase =
+    bonus > 0
+      ? ` En plus, tu reçois ${formatXof(bonus)} de bonus dès ta première recharge.`
+      : "";
+  const shareText = `Salut ! Sur num express tu achètes un numéro virtuel et tu reçois ton code SMS (Telegram, Google, Instagram…) en quelques secondes, payé en Mobile Money.${bonusPhrase} Inscris-toi ici : ${link}`;
 
   return (
     <div className="space-y-6">
@@ -28,6 +33,13 @@ export default async function AffiliatePage() {
         <p className="text-muted">
           Gagnez <strong>{pct}%</strong> sur chaque achat de vos filleuls,
           crédité directement sur votre solde.
+          {bonus > 0 && (
+            <>
+              {" "}
+              Et votre filleul reçoit <strong>{formatXof(bonus)}</strong> de
+              bonus à sa première recharge.
+            </>
+          )}
         </p>
       </div>
 
@@ -93,7 +105,7 @@ export default async function AffiliatePage() {
         <h2 className="mb-4 font-semibold">Mes filleuls</h2>
         {stats.referrals.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted">
-            Aucun filleul pour l'instant. Partagez votre lien !
+            Aucun filleul pour l&apos;instant. Partagez votre lien&nbsp;!
           </p>
         ) : (
           <ul className="divide-y text-sm">

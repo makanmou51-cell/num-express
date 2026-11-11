@@ -5,6 +5,9 @@ export const registerSchema = z.object({
   email: z.string().trim().toLowerCase().email("Adresse e-mail invalide"),
   password: z.string().min(6, "Mot de passe : 6 caractères minimum").max(200),
   ref: z.string().trim().max(20).optional().or(z.literal("")),
+  // Réponse DÉCLARÉE « Où nous avez-vous connu ? ». Complète la mesure auto
+  // (utm/référent), qui ne voit PAS le bouche-à-oreille WhatsApp.
+  heard: z.string().trim().max(20).optional().or(z.literal("")),
 });
 
 export const forgotSchema = z.object({
