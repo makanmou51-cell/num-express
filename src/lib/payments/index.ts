@@ -28,14 +28,14 @@ const CATALOG: Record<string, ProviderEntry> = {
   bkapay: {
     provider: bkapayProvider,
     configured: () => Boolean(env.payment.bkapay.secretKey),
-    label: "MTN Mobile Money",
-    hint: "Recommandé",
+    label: "BKApay",
+    hint: "MTN · Moov Money",
   },
   leekpay: {
     provider: leekpayProvider,
     configured: () => Boolean(env.payment.leekpay.secretKey),
-    label: "Orange Money & autres",
-    hint: "",
+    label: "LeekPay",
+    hint: "MTN · Moov · Orange Money",
   },
   fedapay: {
     provider: fedapayProvider,
