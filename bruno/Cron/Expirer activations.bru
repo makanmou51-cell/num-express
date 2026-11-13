@@ -1,0 +1,20 @@
+meta {
+  name: Cron - expirer activations
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/cron/expire-activations?secret={{cronSecret}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  Rembourse / clot les numeros expires sans code recu.
+  Protege par CRON_SECRET (variable `cronSecret`).
+}

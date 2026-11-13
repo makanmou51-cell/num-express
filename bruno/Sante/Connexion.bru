@@ -1,0 +1,19 @@
+meta {
+  name: Connexion
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/login
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  Page de connexion. Doit repondre 200.
+}

@@ -1,0 +1,27 @@
+meta {
+  name: Prix d'un numero
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/buy/price?service=tg&country=0&duration=0
+  body: none
+  auth: none
+}
+
+headers {
+  Cookie: {{authCookie}}
+}
+
+docs {
+  CONNEXION REQUISE (sans cookie de session => 401).
+
+  Pour tester :
+  1) Connecte-toi sur le site.
+  2) F12 > Application > Cookies > copie la ligne du cookie de session.
+  3) Colle-la dans la variable d'environnement `authCookie` (format: nom=valeur).
+
+  Params : service (tg=Telegram, wa=WhatsApp, go=Google...),
+  country (0=Russie, ...), duration (0=code unique, >0=location en heures).
+}

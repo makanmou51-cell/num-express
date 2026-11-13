@@ -1,0 +1,20 @@
+meta {
+  name: Inscription
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/register
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  Page d'inscription. Doit repondre 200 et contenir le menu
+  « Ou nous avez-vous connu ? » (name="heard").
+}

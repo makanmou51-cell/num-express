@@ -1,0 +1,20 @@
+meta {
+  name: Conditions d'utilisation
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/terms
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  Page des conditions d'utilisation (ajoutee le 13/11/2026 pour corriger
+  un ancien 404). Doit repondre 200.
+}

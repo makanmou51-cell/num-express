@@ -1,0 +1,20 @@
+meta {
+  name: Recharges en attente
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/wallet/pending
+  body: none
+  auth: none
+}
+
+headers {
+  Cookie: {{authCookie}}
+}
+
+docs {
+  CONNEXION REQUISE. Recharges PENDING du client connecte (sert au suivi
+  du paiement au retour de Mobile Money). Sans cookie => 401.
+}

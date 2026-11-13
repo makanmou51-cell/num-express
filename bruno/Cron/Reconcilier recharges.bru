@@ -1,0 +1,22 @@
+meta {
+  name: Cron - reconcilier recharges
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/cron/reconcile-topups?secret={{cronSecret}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  Filet de securite des recharges : credite celles reellement payees dont
+  le webhook s'est perdu, clot celles jamais payees.
+  Protege par CRON_SECRET : renseigne la variable `cronSecret` (= la valeur
+  de CRON_SECRET dans ton .env / Vercel). Sans le bon secret => 401.
+}

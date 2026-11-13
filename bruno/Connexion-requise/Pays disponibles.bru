@@ -1,0 +1,20 @@
+meta {
+  name: Pays disponibles
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/buy/countries?service=tg
+  body: none
+  auth: none
+}
+
+headers {
+  Cookie: {{authCookie}}
+}
+
+docs {
+  CONNEXION REQUISE. Liste des pays disponibles pour un service donne.
+  Voir « Prix d'un numero » pour recuperer ton cookie de session.
+}

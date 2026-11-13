@@ -1,0 +1,21 @@
+meta {
+  name: Webhook BKApay (doit etre 405)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/payments/bkapay/webhook
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 405
+}
+
+docs {
+  Les webhooks de paiement n'acceptent que POST (payload signe HMAC).
+  Un GET doit repondre 405 : ca confirme juste que la route est en ligne
+  et refuse les appels non signes. Idem pour leekpay / fedapay / moneyfusion.
+}
