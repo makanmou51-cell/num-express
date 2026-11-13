@@ -63,10 +63,9 @@ export default async function WalletPage({
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">
           {/* Solde — carte dégradée premium */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-dark to-[#0d5a37] p-6 text-white shadow-lg">
-            <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-400/20 blur-2xl" />
+          <div className="overflow-hidden rounded-2xl bg-[#06241A] p-6 text-white">
             <p className="text-sm text-white/70">Solde disponible</p>
-            <p className="mt-1 text-4xl font-extrabold tracking-tight">
+            <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums">
               {formatXof(balance)}
             </p>
           </div>

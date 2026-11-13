@@ -10,15 +10,13 @@ function ServiceCard({ svc }: { svc: Svc }) {
   return (
     <Link
       href={`/buy/${svc.code}`}
-      className="group relative flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:shadow-md"
+      className="group relative flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-4 transition-colors hover:border-primary/40"
     >
-      <ServiceIcon
-        code={svc.code}
-        className="h-11 w-11 shrink-0 text-sm transition-transform group-hover:scale-105"
-      />
-      <span className="font-semibold group-hover:text-primary">{svc.label}</span>
+      <ServiceIcon code={svc.code} className="h-11 w-11 shrink-0 text-sm" />
+      <span className="font-medium group-hover:text-primary">{svc.label}</span>
       {svc.reliable && (
-        <span className="absolute right-2 top-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+        <span className="absolute right-3 top-3 inline-flex items-center gap-1 text-[11px] text-muted">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
           Fiable
         </span>
       )}
@@ -66,7 +64,7 @@ export function ServiceGrid({
 
       {filtered ? (
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
+          <h2 className="mb-3 text-sm font-medium text-muted">
             {filtered.length} résultat{filtered.length > 1 ? "s" : ""}
           </h2>
           {filtered.length === 0 ? (
@@ -84,7 +82,7 @@ export function ServiceGrid({
       ) : (
         <>
           <section>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
+            <h2 className="mb-3 text-sm font-medium text-muted">
               Populaires
             </h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -94,7 +92,7 @@ export function ServiceGrid({
             </div>
           </section>
           <section>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
+            <h2 className="mb-3 text-sm font-medium text-muted">
               Autres services
             </h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

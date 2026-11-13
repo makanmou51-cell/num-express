@@ -223,7 +223,7 @@ export function CountryList({
 
             <div className="mt-2 flex items-end justify-between">
               <span className="text-sm text-muted">Prix</span>
-              <span className="text-3xl font-extrabold tabular-nums">
+              <span className="text-3xl font-semibold tabular-nums">
                 {formatXof(chosen.priceXof)}
               </span>
             </div>

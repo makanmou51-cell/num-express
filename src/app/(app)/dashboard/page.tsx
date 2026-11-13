@@ -50,6 +50,10 @@ export default async function DashboardPage({
   return (
     <div className="space-y-6">
       {error && <Alert variant="error">{error}</Alert>}
+      {/* Conversion « inscription terminee » : ne se declenche qu'au premier
+          passage apres l'inscription (?bienvenue=1), une seule fois. Sans ce
+          rendu, le pixel Meta/TikTok ne comptait AUCUNE inscription. */}
+      {bienvenue && <TrackOnce event="CompleteRegistration" />}
 
       {/* Recrutement d abonnés aux notifications. Ne declenche rien tout
           seul : la demande du navigateur n arrive qu au clic. */}

@@ -119,7 +119,7 @@ export function BoostForm({
                 key={n.key}
                 type="button"
                 onClick={() => pickNetwork(n.key)}
-                className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-all ${
+                className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-colors ${
                   n.key === netKey
                     ? "border-primary bg-primary/10 text-primary shadow-sm"
                     : "border-border bg-white text-foreground hover:border-primary/40"
@@ -310,7 +310,7 @@ export function BoostForm({
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted">Prix</span>
             <span
-              className={`text-2xl font-extrabold tabular-nums ${
+              className={`text-2xl font-semibold tabular-nums ${
                 missing > 0 ? "text-warning" : "text-primary"
               }`}
             >

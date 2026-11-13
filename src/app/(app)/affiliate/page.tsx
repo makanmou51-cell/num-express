@@ -48,7 +48,7 @@ export default async function AffiliatePage() {
           de filleuls et le code. */}
       <Card className="p-5 text-center">
         <p className="text-sm text-muted">Commissions gagnées</p>
-        <p className="mt-1 text-4xl font-extrabold tabular-nums text-primary">
+        <p className="mt-1 text-4xl font-semibold tabular-nums text-primary">
           {formatXof(stats.totalEarned)}
         </p>
       </Card>

@@ -66,19 +66,11 @@ export default async function AuthLayout({
           }}
         />
         {/* Fond dégradé + lueurs + champ d'étoiles */}
-        <div className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary-dark via-[#0d5a37] to-[#072b18]" />
-          <div className="absolute -top-32 right-0 h-96 w-96 rounded-full bg-emerald-500/25 blur-[120px]" />
-          <div className="absolute bottom-0 left-0 h-72 w-72 rounded-full bg-emerald-400/15 blur-[110px]" />
-          <div className="absolute inset-0 opacity-[0.12] [background-image:radial-gradient(#fff_1px,transparent_1px)] [background-size:34px_34px]" />
-        </div>
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[#06241A]" />
 
         <div className="max-w-sm px-8 text-center">
-          <h2 className="text-3xl font-bold leading-tight">
-            Tes codes,{" "}
-            <span className="bg-gradient-to-r from-emerald-300 to-emerald-500 bg-clip-text text-transparent">
-              en toute sécurité
-            </span>
+          <h2 className="text-3xl font-semibold leading-tight">
+            Tes codes, <span className="text-emerald-300">en toute sécurité</span>
           </h2>
           <p className="mt-3 text-white/70">
             Telegram, Google, Instagram, WhatsApp et plus de 2 000 services.

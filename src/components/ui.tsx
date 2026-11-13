@@ -57,16 +57,15 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, string> = {
   primary:
-    "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-60 disabled:hover:shadow-none",
+    "bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60",
   // Réservé à l'action qui fait gagner de l'argent (Acheter, Louer, Recharger) :
   // une seule action dominante par écran, sinon plus rien ne ressort.
   accent:
-    "bg-accent text-accent-foreground hover:bg-accent/90 hover:shadow-lg hover:shadow-accent/25 disabled:opacity-60 disabled:hover:shadow-none",
+    "bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-60",
   outline:
-    "border bg-white hover:border-primary/40 hover:bg-gray-50 hover:shadow-sm disabled:opacity-60",
+    "border bg-white hover:border-primary/40 hover:bg-gray-50 disabled:opacity-60",
   ghost: "hover:bg-gray-100 disabled:opacity-60",
-  danger:
-    "bg-red-600 text-white hover:bg-red-700 hover:shadow-lg hover:shadow-red-500/25 disabled:opacity-60",
+  danger: "bg-red-600 text-white hover:bg-red-700 disabled:opacity-60",
 };
 // min-h-11 = 44px : cible tactile minimale imposée sur TOUTES les tailles —
 // le public est à ~100 % mobile, un bouton de 32px se rate au doigt.
@@ -85,7 +84,7 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 active:scale-[0.97] disabled:cursor-not-allowed disabled:active:scale-100",
+        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:active:scale-100",
         VARIANTS[variant],
         SIZES[size],
         className,
@@ -107,7 +106,7 @@ export function ButtonLink({
   return (
     <Link
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 active:scale-[0.97]",
+        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors duration-150 active:scale-[0.98]",
         VARIANTS[variant ?? "primary"],
         SIZES[size ?? "md"],
         className,

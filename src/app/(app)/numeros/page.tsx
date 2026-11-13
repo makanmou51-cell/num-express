@@ -5,9 +5,9 @@ import { Card, ButtonLink } from "@/components/ui";
 export const metadata: Metadata = { title: "Numéros virtuels" };
 
 const TONES: Record<string, string> = {
-  blue: "bg-blue-50 text-blue-600",
-  violet: "bg-violet-50 text-violet-600",
-  slate: "bg-slate-100 text-slate-600",
+  blue: "bg-gray-100 text-muted",
+  violet: "bg-gray-100 text-muted",
+  slate: "bg-gray-100 text-muted",
 };
 
 function OptionCard({
