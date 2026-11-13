@@ -65,13 +65,12 @@ export default async function DashboardPage({
           en raccourcis d'une ligne. Les grandes cartes n'arrivent qu'à
           partir de sm. */}
       <div className="grid gap-2 sm:hidden">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-dark to-[#0d5a37] p-4 text-white shadow-lg">
-          <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-emerald-400/20 blur-2xl" />
+        <div className="overflow-hidden rounded-2xl bg-[#06241A] p-4 text-white">
           <p className="text-sm text-white/70">
             Bonjour{user.name ? ` ${user.name}` : ""} · Solde disponible
           </p>
           <div className="mt-1 flex items-center justify-between gap-3">
-            <p className="text-2xl font-extrabold tabular-nums tracking-tight">
+            <p className="text-2xl font-semibold tabular-nums tracking-tight">
               {formatXof(balance)}
             </p>
             <ButtonLink
@@ -114,12 +113,11 @@ export default async function DashboardPage({
             repoussait les codes reçus hors du premier écran.
             Couleurs passées aux tokens (--primary-dark) : elles étaient
             écrites en dur, donc invisibles au reste du système. */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-dark to-[#0d5a37] p-4 text-white shadow-lg">
-          <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-emerald-400/20 blur-2xl" />
+        <div className="overflow-hidden rounded-2xl bg-[#06241A] p-4 text-white">
           <p className="text-sm text-white/70">
             Bonjour{user.name ? ` ${user.name}` : ""} · Solde disponible
           </p>
-          <p className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight">
+          <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">
             {formatXof(balance)}
           </p>
           <ButtonLink
@@ -150,6 +148,7 @@ export default async function DashboardPage({
           desc="Followers, likes et vues pour tes réseaux."
           href="/boost"
           cta="Booster"
+          outline
         />
 
         <QuickCard
@@ -158,7 +157,7 @@ export default async function DashboardPage({
           desc="Comptes TikTok, Facebook Europe et Instagram, livrés immédiatement."
           href="/comptes"
           cta="Parcourir"
-          violet
+          outline
         />
       </div>
 
@@ -274,7 +273,6 @@ function QuickCard({
   cta,
   outline = false,
   accent = false,
-  violet = false,
 }: {
   icons: string[];
   title: string;
@@ -284,34 +282,22 @@ function QuickCard({
   outline?: boolean;
   /** Action dominante de l'écran : bouton orange. */
   accent?: boolean;
-  /** Couleur du service « Comptes » (surcharge locale, voir [&_a]). */
-  violet?: boolean;
 }) {
   return (
     <Card className="flex flex-col justify-between p-4">
       <div>
         <BrandStack codes={icons} />
-        <p className="mt-3 font-semibold">{title}</p>
+        <p className="mt-3 font-medium">{title}</p>
         <p className="mt-1 text-sm text-muted">{desc}</p>
       </div>
-      {violet ? (
-        /* Le sélecteur [&_a] est plus spécifique que les classes de variante :
-           il impose le violet sans toucher au composant Button partagé. */
-        <span className="[&_a]:bg-violet-600 [&_a]:text-white [&_a:hover]:bg-violet-700 [&_a:hover]:shadow-lg [&_a:hover]:shadow-violet-500/25">
-          <ButtonLink href={href} size="sm" className="mt-3 w-full">
-            {cta}
-          </ButtonLink>
-        </span>
-      ) : (
-        <ButtonLink
-          href={href}
-          size="sm"
-          variant={accent ? "accent" : outline ? "outline" : "primary"}
-          className="mt-3 w-full"
-        >
-          {cta}
-        </ButtonLink>
-      )}
+      <ButtonLink
+        href={href}
+        size="sm"
+        variant={accent ? "accent" : outline ? "outline" : "primary"}
+        className="mt-3 w-full"
+      >
+        {cta}
+      </ButtonLink>
     </Card>
   );
 }
