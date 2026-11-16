@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { StatusBadge } from "@/components/status-badge";
+import { StatusBadge, StatusDot } from "@/components/status-badge";
 import { ServiceIcon } from "@/components/service-icon";
 import { ButtonLink, Segmented } from "@/components/ui";
 import { IconSim } from "@/components/icons";
@@ -109,7 +109,7 @@ export function NumbersList({ items }: { items: NumItem[] }) {
                       {a.countryName ?? a.countryCode}
                     </span>
                     {isRental && (
-                      <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                      <span className="rounded-full border border-primary/30 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                         Loué{a.durationLabel ? ` · ${a.durationLabel}` : ""}
                       </span>
                     )}
@@ -132,7 +132,7 @@ export function NumbersList({ items }: { items: NumItem[] }) {
                     <p className="mt-0.5 flex items-center gap-1.5 truncate font-mono text-sm tabular-nums">
                       {a.status === "WAITING_CODE" && (
                         <span
-                          className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-500"
+                          className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-warning"
                           aria-hidden="true"
                         />
                       )}
@@ -144,19 +144,17 @@ export function NumbersList({ items }: { items: NumItem[] }) {
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   {isRental ? (
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        a.status === "ACTIVE"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-200 text-gray-600"
-                      }`}
-                    >
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                      <StatusDot
+                        tone={a.status === "ACTIVE" ? "success" : "muted"}
+                        pulse={a.status === "ACTIVE"}
+                      />
                       {a.status === "ACTIVE" ? "Actif" : "Expiré"}
                     </span>
                   ) : (
                     <StatusBadge status={a.status} />
                   )}
-                  <span className="text-[11px] text-muted">
+                  <span className="font-mono text-[11px] tabular-nums text-muted">
                     {formatWhen(a.createdAt)} · {formatXof(a.priceXof)}
                   </span>
                 </div>

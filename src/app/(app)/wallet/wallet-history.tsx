@@ -31,18 +31,18 @@ const STATUS_LABEL: Record<string, string> = {
   FAILED: "Échoué",
   CANCELLED: "Annulé",
 };
-const STATUS_CLASS: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  FAILED: "bg-red-100 text-red-700",
-  CANCELLED: "bg-gray-200 text-gray-600",
+// Statut en point coloré + texte discret, au lieu d'une pastille pastel pleine.
+// Ton tiré des couleurs sémantiques : ambre = en cours, rouge = échec, gris = clos.
+type StatusTone = "warning" | "destructive" | "muted";
+const STATUS_TONE: Record<string, StatusTone> = {
+  PENDING: "warning",
+  FAILED: "destructive",
+  CANCELLED: "muted",
 };
-
-/** Une couleur par nature d'opération, pas seulement crédit/débit. */
-const TYPE_TONE: Record<string, string> = {
-  TOPUP: "bg-green-100 text-green-700",
-  PURCHASE: "bg-slate-100 text-slate-600",
-  REFUND: "bg-blue-100 text-blue-700",
-  ADJUSTMENT: "bg-amber-100 text-amber-800",
+const STATUS_DOT: Record<StatusTone, string> = {
+  warning: "bg-warning",
+  destructive: "bg-destructive",
+  muted: "bg-gray-300",
 };
 
 function TxIcon({ type, credit }: { type: string; credit: boolean }) {
@@ -103,18 +103,11 @@ export function WalletHistory({ transactions }: { transactions: WTx[] }) {
                 key={t.id}
                 className={`flex items-center gap-3 py-3 ${faded ? "opacity-60" : ""}`}
               >
-                {/* Avant : un « + » ou un « − » dans une pastille, identique
-                    pour une recharge, un achat et un remboursement — trois
-                    opérations très différentes qui se ressemblaient. Chaque
-                    type a maintenant son propre pictogramme. */}
-                <span
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-                    TYPE_TONE[t.type] ??
-                    (credit
-                      ? "bg-green-100 text-green-700"
-                      : "bg-rose-100 text-rose-600")
-                  }`}
-                >
+                {/* Pastille NEUTRE : chaque type a son propre pictogramme, ça
+                    suffit à les distinguer. Le crédit/débit se lit sur le
+                    montant (vert/rouge) à droite, pas sur un fond coloré de
+                    plus — on évite l'arc-en-ciel de pastilles. */}
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-muted">
                   <TxIcon type={t.type} credit={credit} />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -123,18 +116,18 @@ export function WalletHistory({ transactions }: { transactions: WTx[] }) {
                       {TYPE_LABEL[t.type] ?? t.type}
                     </span>
                     {t.status !== "COMPLETED" && (
-                      /* 10px était sous le seuil de lisibilité : « En attente »
-                         est justement la mention qu'il faut pouvoir lire. */
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          STATUS_CLASS[t.status] ?? "bg-gray-200 text-gray-600"
-                        }`}
-                      >
+                      <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                        <span
+                          aria-hidden="true"
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                            STATUS_DOT[STATUS_TONE[t.status] ?? "muted"]
+                          }`}
+                        />
                         {STATUS_LABEL[t.status] ?? t.status}
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 text-xs text-muted">
+                  <p className="mt-0.5 font-mono text-xs tabular-nums text-muted">
                     {formatWhen(t.createdAt)}
                   </p>
                 </div>
@@ -143,8 +136,8 @@ export function WalletHistory({ transactions }: { transactions: WTx[] }) {
                 <Amount
                   value={t.amount}
                   signed
-                  className={`shrink-0 text-base font-bold ${
-                    credit ? "text-green-700" : "text-rose-600"
+                  className={`shrink-0 text-base font-semibold ${
+                    credit ? "text-success" : "text-destructive"
                   }`}
                 />
               </li>

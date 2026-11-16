@@ -11,7 +11,10 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border bg-card shadow-sm",
+        // Filet fin plutôt qu'ombre portée : sur fond clair, une carte qui
+        // flotte sur une ombre est LE marqueur « template ». La profondeur
+        // vient du trait et de l'espace, pas du drop-shadow.
+        "rounded-2xl border bg-card",
         className,
       )}
       {...props}
@@ -189,9 +192,9 @@ export function Segmented({
             aria-selected={on}
             onClick={() => onChange(o.value)}
             className={cn(
-              "min-h-11 rounded-md px-4 text-sm font-medium transition-all",
+              "min-h-11 rounded-md px-4 text-sm font-medium transition-colors",
               on
-                ? "bg-white text-foreground shadow-sm"
+                ? "bg-white text-foreground"
                 : "text-muted active:bg-white/60",
             )}
           >

@@ -45,7 +45,7 @@ export default async function WalletPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Mon solde</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Mon solde</h1>
 
       {/* Conversion « achat » : une recharge creditee est le SEUL moment ou
           de l'argent entre reellement. C'est sur cet evenement qu'il faudra
@@ -62,11 +62,15 @@ export default async function WalletPage({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">
-          {/* Solde — carte dégradée premium */}
+          {/* Solde — LE moment riche de l'écran : un « reçu » vert plein, seul
+              bloc coloré de la page. Le chiffre porte tout, en gros et aligné. */}
           <div className="overflow-hidden rounded-2xl bg-[#06241A] p-6 text-white">
             <p className="text-sm text-white/70">Solde disponible</p>
             <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums">
               {formatXof(balance)}
+            </p>
+            <p className="mt-2 font-mono text-xs text-white/50">
+              Rechargeable par Mobile Money
             </p>
           </div>
 

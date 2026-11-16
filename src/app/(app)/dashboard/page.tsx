@@ -170,9 +170,9 @@ export default async function DashboardPage({
           personne ne la trouvait, donc personne ne partageait. */}
       <Link
         href="/affiliate"
-        className="flex items-center gap-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 transition-colors hover:bg-primary/10 active:bg-primary/15"
+        className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-gray-50 active:bg-gray-100"
       >
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
           <svg
             viewBox="0 0 24 24"
             className="h-6 w-6"
@@ -189,7 +189,7 @@ export default async function DashboardPage({
           </svg>
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block font-semibold">
+          <span className="block font-medium">
             Parraine tes amis, gagne de l&apos;argent
           </span>
           <span className="block text-sm text-muted">

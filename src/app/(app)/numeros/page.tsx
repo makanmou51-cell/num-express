@@ -64,7 +64,7 @@ export default async function NumerosPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold">Numéros virtuels</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Numéros virtuels</h1>
         <p className="text-muted">
           Choisissez l&apos;option qui correspond à votre besoin.
         </p>

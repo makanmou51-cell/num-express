@@ -55,7 +55,7 @@ export default async function NumbersPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Mes numéros</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Mes numéros</h1>
         <ButtonLink href="/buy" size="sm">
           Acheter
         </ButtonLink>

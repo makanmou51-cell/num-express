@@ -143,7 +143,7 @@ export function RecentActivations({ activations }: { activations: DashAct[] }) {
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
                       <StatusBadge status={a.status} />
-                      <span className="text-[11px] text-muted">
+                      <span className="font-mono text-[11px] tabular-nums text-muted">
                         {formatWhen(a.createdAt)} ·{" "}
                         <Amount value={a.priceXof} />
                       </span>
@@ -162,7 +162,7 @@ export function RecentActivations({ activations }: { activations: DashAct[] }) {
           <div className="mt-4 border-t border-border pt-3 text-center">
             <Link
               href="/numbers"
-              className="group inline-flex items-center gap-1 text-sm font-medium text-primary transition-all hover:gap-2 hover:text-primary/80"
+              className="group inline-flex items-center gap-1.5 text-sm font-medium text-primary transition-colors hover:text-primary/80"
             >
               Voir toutes mes activations
               <span
