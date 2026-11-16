@@ -21,6 +21,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  // Base des URL absolues des métadonnées (og:image, canonical…). Sans elle,
+  // l'aperçu de partage WhatsApp/Facebook reçoit une URL d'image relative
+  // qu'il ne sait pas résoudre → pas d'image. On la fixe sur le domaine de
+  // production. L'image elle-même est générée par `opengraph-image.tsx`.
+  metadataBase: new URL("https://num-express.com"),
   title: {
     default: "num express — Numéros virtuels pour Telegram, Google & plus",
     template: "%s — num express",
@@ -33,6 +38,26 @@ export const metadata: Metadata = {
     capable: true,
     title: "num express",
     statusBarStyle: "black-translucent",
+  },
+  // Aperçu quand on partage le lien (WhatsApp, Facebook, Telegram, Messenger…).
+  // Pas de champ `images` ici : Next ajoute automatiquement l'image produite
+  // par `opengraph-image.tsx`.
+  openGraph: {
+    type: "website",
+    siteName: "num express",
+    locale: "fr_FR",
+    url: "/",
+    title: "num express — Numéros virtuels, codes SMS en Mobile Money",
+    description:
+      "Achetez un numéro virtuel et recevez votre code de vérification SMS en quelques secondes. Telegram, WhatsApp, Google et 2 000 services. Paiement Mobile Money.",
+  },
+  // Carte « grande image » sur X/Twitter. En l'absence d'image Twitter dédiée,
+  // la plupart des plateformes retombent sur l'image Open Graph ci-dessus.
+  twitter: {
+    card: "summary_large_image",
+    title: "num express — Numéros virtuels, codes SMS en Mobile Money",
+    description:
+      "Un numéro jetable pour recevoir vos codes SMS en quelques secondes. Paiement Mobile Money.",
   },
   // Empêche la traduction auto du navigateur, qui casse React (removeChild) et
   // rend les boutons non cliquables. L'app est déjà en français.
