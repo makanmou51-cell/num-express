@@ -163,7 +163,7 @@ function Stepper({ step }: { step: 1 | 2 | 3 }) {
         return (
           <li key={label} className="flex flex-1 items-center gap-2">
             <span
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                 done
                   ? "bg-primary text-primary-foreground"
                   : current
@@ -488,11 +488,18 @@ export function BuyWizard({
                       <span className="flex-1 truncate text-sm font-medium">
                         {s.name}
                       </span>
-                      {s.featured && (
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-                          Populaire
-                        </span>
-                      )}
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-5 w-5 shrink-0 text-muted"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="m9 6 6 6-6 6" />
+                      </svg>
                     </button>
                   </li>
                 ))}
@@ -590,8 +597,11 @@ export function BuyWizard({
                             {c.name}
                           </span>
                           {c.reliable && (
-                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
-                              <IconCheck className="h-3 w-3" />
+                            <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-success">
+                              <span
+                                className="h-1.5 w-1.5 rounded-full bg-success"
+                                aria-hidden="true"
+                              />
                               Fiable
                             </span>
                           )}
@@ -600,7 +610,7 @@ export function BuyWizard({
                           {c.count.toLocaleString("fr-FR")} numéros disponibles
                         </span>
                       </span>
-                      <span className="shrink-0 text-sm font-bold tabular-nums">
+                      <span className="shrink-0 text-sm font-semibold tabular-nums">
                         {formatXof(c.priceXof)}
                       </span>
                     </button>
@@ -640,7 +650,7 @@ export function BuyWizard({
               Le FlashCall est un produit distinct chez HeroSMS : le choix
               descend jusqu'au fournisseur, il ne reste pas décoratif. */}
           <fieldset>
-            <legend className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+            <legend className="mb-1.5 text-xs font-medium text-muted">
               Recevoir le code par
             </legend>
             <div
@@ -730,7 +740,7 @@ export function BuyWizard({
               <div className="space-y-3">
                 <div className="flex items-end justify-between gap-3">
                   <div>
-                    <p className="text-3xl font-bold tabular-nums">
+                    <p className="text-3xl font-semibold tabular-nums tracking-tight">
                       {formatXof(price.priceXof!)}
                     </p>
                     <p className="text-xs text-muted">
@@ -740,7 +750,7 @@ export function BuyWizard({
                   </div>
                   <p className="text-right text-xs text-muted">
                     Votre solde
-                    <span className="block font-bold tabular-nums text-foreground">
+                    <span className="block font-semibold tabular-nums text-foreground">
                       {formatXof(userBalance)}
                     </span>
                   </p>

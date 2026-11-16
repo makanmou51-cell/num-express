@@ -30,7 +30,9 @@ export default async function BuyPage() {
     <div className="mx-auto max-w-xl space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Acheter un numéro</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Acheter un numéro
+          </h1>
           <p className="mt-1 text-sm text-muted">
             Choisissez le service, le pays, puis validez.
           </p>
@@ -38,7 +40,7 @@ export default async function BuyPage() {
         {/* tabular-nums : le montant ne fait plus sauter la ligne quand il change. */}
         <p className="shrink-0 rounded-xl border border-border bg-card px-3 py-2 text-right">
           <span className="block text-xs text-muted">Votre solde</span>
-          <strong className="block text-base font-bold tabular-nums">
+          <strong className="block text-base font-semibold tabular-nums">
             {formatXof(user.balance)}
           </strong>
         </p>

@@ -248,7 +248,7 @@ export function BalancePill({
       )}
     >
       <span className="block text-xs text-muted">{label}</span>
-      <strong className="block text-base font-bold tabular-nums">
+      <strong className="block text-base font-semibold tabular-nums">
         {formatXof(balance)}
       </strong>
     </p>
