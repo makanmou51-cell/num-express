@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { Card } from "@/components/ui";
+import { StatusDot } from "@/components/status-badge";
 import { IconBoost } from "@/components/icons";
 import { formatXof } from "@/lib/pricing";
 import { formatWhen } from "@/lib/datetime";
@@ -22,16 +23,21 @@ const STATUS_LABEL: Record<string, string> = {
   FAILED: "Échoué",
   REFUNDED: "Remboursé",
 };
-const STATUS_CLASS: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  PROCESSING: "bg-blue-100 text-blue-700",
-  IN_PROGRESS: "bg-blue-100 text-blue-700",
-  COMPLETED: "bg-green-100 text-green-800",
-  PARTIAL: "bg-violet-100 text-violet-700",
-  CANCELED: "bg-gray-200 text-gray-600",
-  FAILED: "bg-red-100 text-red-700",
-  REFUNDED: "bg-gray-200 text-gray-600",
+// Statut en point vivant + texte discret (même langage que le reste de l'app),
+// au lieu de pastilles pastel — dont un violet banni partout ailleurs.
+type Tone = "success" | "warning" | "muted" | "destructive";
+const STATUS_TONE: Record<string, Tone> = {
+  PENDING: "warning",
+  PROCESSING: "warning",
+  IN_PROGRESS: "warning",
+  COMPLETED: "success",
+  PARTIAL: "warning",
+  CANCELED: "muted",
+  FAILED: "destructive",
+  REFUNDED: "muted",
 };
+// Les commandes qui travaillent encore : le point bat (« en cours »).
+const LIVE = new Set(["PROCESSING", "IN_PROGRESS"]);
 
 export default async function BoostPage() {
   const user = await requireUser();
@@ -51,7 +57,9 @@ export default async function BoostPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Boost réseaux sociaux</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Boost réseaux sociaux
+        </h1>
         <p className="text-muted">
           Followers, likes et vues pour TikTok, Instagram et Facebook — payés
           avec ton solde.
@@ -89,7 +97,7 @@ export default async function BoostPage() {
                     <p className="truncate text-sm font-medium">
                       {o.serviceLabel}
                     </p>
-                    <p className="mt-0.5 truncate text-xs text-muted">
+                    <p className="mt-0.5 truncate font-mono text-xs tabular-nums text-muted">
                       {o.quantity.toLocaleString("fr-FR")} ·{" "}
                       {formatWhen(o.createdAt)} · {formatXof(o.priceXof)}
                       {delivered != null && o.status !== "COMPLETED"
@@ -97,11 +105,11 @@ export default async function BoostPage() {
                         : ""}
                     </p>
                   </div>
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      STATUS_CLASS[o.status] ?? "bg-gray-100 text-gray-600"
-                    }`}
-                  >
+                  <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted">
+                    <StatusDot
+                      tone={STATUS_TONE[o.status] ?? "muted"}
+                      pulse={LIVE.has(o.status)}
+                    />
                     {STATUS_LABEL[o.status] ?? o.status}
                   </span>
                 </li>

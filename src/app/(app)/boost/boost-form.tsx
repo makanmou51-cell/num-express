@@ -121,7 +121,7 @@ export function BoostForm({
                 onClick={() => pickNetwork(n.key)}
                 className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-colors ${
                   n.key === netKey
-                    ? "border-primary bg-primary/10 text-primary shadow-sm"
+                    ? "border-primary bg-primary/10 text-primary"
                     : "border-border bg-white text-foreground hover:border-primary/40"
                 }`}
               >
@@ -261,10 +261,10 @@ export function BoostForm({
                       : "border-border bg-white active:bg-gray-100"
                   }`}
                 >
-                  <span className="text-base font-bold tabular-nums">
+                  <span className="text-base font-semibold tabular-nums">
                     {n.toLocaleString("fr-FR")}
                   </span>
-                  <span className="text-xs tabular-nums opacity-80">
+                  <span className="font-mono text-xs tabular-nums opacity-80">
                     {formatXof(priceXof(tier.pricePer1000Xof, n))}
                   </span>
                 </button>
@@ -300,13 +300,7 @@ export function BoostForm({
             remplissait tout le formulaire, validait, attendait, et se prenait
             « solde insuffisant » en rouge — sans savoir combien il lui
             manquait ni où recharger. */}
-        <div
-          className={`rounded-xl border px-4 py-3 ${
-            missing > 0
-              ? "border-warning/30 bg-warning/5"
-              : "border-primary/20 bg-primary/5"
-          }`}
-        >
+        <div className="rounded-xl border border-border bg-card px-4 py-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted">Prix</span>
             <span
@@ -319,7 +313,7 @@ export function BoostForm({
           </div>
           <div className="mt-1 flex items-center justify-between text-sm">
             <span className="text-muted">Ton solde</span>
-            <span className="tabular-nums text-muted">
+            <span className="font-mono tabular-nums text-muted">
               {formatXof(balance)}
             </span>
           </div>

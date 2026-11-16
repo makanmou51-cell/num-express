@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
  * où l'on lit l'état d'un coup d'œil, pas une collection de badges.
  */
 
-type Tone = "success" | "warning" | "muted";
+type Tone = "success" | "warning" | "muted" | "destructive";
 
 const MAP: Record<string, { label: string; tone: Tone }> = {
   WAITING_CODE: { label: "En attente", tone: "warning" },
@@ -29,6 +29,7 @@ const DOT: Record<Tone, string> = {
   success: "bg-success",
   warning: "bg-warning",
   muted: "bg-gray-300",
+  destructive: "bg-destructive",
 };
 
 export function StatusDot({
