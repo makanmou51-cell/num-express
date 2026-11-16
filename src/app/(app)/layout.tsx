@@ -21,7 +21,10 @@ const NAV = [
   { href: "/boost", label: "Boost" },
   { href: "/comptes", label: "Comptes" },
   { href: "/wallet", label: "Solde" },
-  { href: "/affiliate", label: "Parrainage" },
+  // « Plus » = compte + parrainage + conditions + admin + déconnexion,
+  // regroupés sur une page dédiée (façon ExoBooster). Le parrainage reste
+  // mis en avant par la bannière du tableau de bord.
+  { href: "/plus", label: "Plus" },
 ];
 
 export default async function AppLayout({

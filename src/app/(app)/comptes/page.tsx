@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { env } from "@/lib/env";
-import { Badge, Card } from "@/components/ui";
+import { Card } from "@/components/ui";
+import { StatusDot } from "@/components/status-badge";
 import { AccountCredentials } from "@/components/account-credentials";
 import { AccountGuide } from "@/components/account-guide";
 import { formatXof } from "@/lib/pricing";
@@ -25,12 +26,16 @@ const STATUS_LABEL: Record<string, string> = {
   CHECK: "Vérification…",
   FAILED: "Échoué — non débité",
 };
-const STATUS_CLASS: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  DELIVERED: "bg-green-100 text-green-800",
-  CHECK: "bg-blue-100 text-blue-700",
-  FAILED: "bg-gray-200 text-gray-600",
+// Statut en point vivant + texte discret (même langage que le reste de l'app).
+type Tone = "success" | "warning" | "muted" | "destructive";
+const STATUS_TONE: Record<string, Tone> = {
+  PENDING: "warning",
+  DELIVERED: "success",
+  CHECK: "warning",
+  FAILED: "muted",
 };
+// Pendant la préparation / vérification, le point bat (« en cours »).
+const LIVE = new Set(["PENDING", "CHECK"]);
 
 export default async function ComptesPage() {
   const user = await requireUser();
@@ -51,7 +56,9 @@ export default async function ComptesPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold">Comptes réseaux sociaux</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Comptes réseaux sociaux
+        </h1>
         <p className="text-muted">
           Comptes TikTok, Facebook (France, Allemagne, Royaume-Uni) et
           Instagram — livrés immédiatement, payés avec ton solde.
@@ -88,18 +95,18 @@ export default async function ComptesPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-medium">{o.productName}</p>
-                  <p className="mt-0.5 text-xs text-muted">
+                  <p className="mt-0.5 font-mono text-xs tabular-nums text-muted">
                     {o.categoryName ? `${o.categoryName} · ` : ""}×{o.quantity}{" "}
                     · {formatXof(o.priceXof)} · {formatWhen(o.createdAt)}
                   </p>
                 </div>
-                <Badge
-                  className={
-                    STATUS_CLASS[o.status] ?? "bg-gray-200 text-gray-600"
-                  }
-                >
+                <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted">
+                  <StatusDot
+                    tone={STATUS_TONE[o.status] ?? "muted"}
+                    pulse={LIVE.has(o.status)}
+                  />
                   {STATUS_LABEL[o.status] ?? o.status}
-                </Badge>
+                </span>
               </div>
 
               {o.status === "PENDING" && (
