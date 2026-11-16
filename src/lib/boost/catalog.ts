@@ -1,7 +1,7 @@
 // Catalogue « Boost » CURATED (façon ExoBooster) : sélection FIABLE de services
 // Peakerr, 1-2 niveaux de qualité, prix de VENTE clair en F CFA (par 1000).
-// `peakerrServiceId` = ID réel Peakerr. Le coût Peakerr est bien sous le prix
-// de vente -> ta marge.
+// `peakerrServiceId` = ID réel Peakerr (vérifié contre la liste live le
+// 2026-11-16). Le coût Peakerr est bien sous le prix de vente -> ta marge.
 
 export interface BoostTier {
   key: string;
@@ -46,7 +46,7 @@ export const BOOST_CATALOG: BoostNetwork[] = [
         label: "J'aime",
         linkHint: "Lien de la VIDÉO TikTok",
         tiers: [
-          { key: "moyenne", label: "100% réels · sans chute · recharge", peakerrServiceId: 33159, min: 10, max: 1000000, pricePer1000Xof: 2500, eta: "0-1h", refill: "Oui" },
+          { key: "standard", label: "100% réels · sans chute", peakerrServiceId: 26238, min: 10, max: 1000000, pricePer1000Xof: 2500, eta: "0-1h", refill: "Non" },
         ],
       },
       {
@@ -55,6 +55,22 @@ export const BOOST_CATALOG: BoostNetwork[] = [
         linkHint: "Lien de la VIDÉO TikTok",
         tiers: [
           { key: "standard", label: "Standard", peakerrServiceId: 4720, min: 100, max: 1000000, pricePer1000Xof: 700, eta: "0-1h", refill: "Non" },
+        ],
+      },
+      {
+        key: "partages",
+        label: "Partages",
+        linkHint: "Lien de la VIDÉO TikTok",
+        tiers: [
+          { key: "standard", label: "Sans chute · rapide", peakerrServiceId: 25803, min: 10, max: 1000000, pricePer1000Xof: 1500, eta: "0-30 min", refill: "Non" },
+        ],
+      },
+      {
+        key: "saves",
+        label: "Enregistrements",
+        linkHint: "Lien de la VIDÉO TikTok",
+        tiers: [
+          { key: "standard", label: "Standard", peakerrServiceId: 24544, min: 10, max: 1000000, pricePer1000Xof: 1000, eta: "0-1h", refill: "Non" },
         ],
       },
     ],
@@ -89,6 +105,22 @@ export const BOOST_CATALOG: BoostNetwork[] = [
           { key: "standard", label: "Standard", peakerrServiceId: 31766, min: 100, max: 500000, pricePer1000Xof: 500, eta: "0-1h", refill: "Non" },
         ],
       },
+      {
+        key: "vues_story",
+        label: "Vues de story",
+        linkHint: "Lien de ta STORY Instagram",
+        tiers: [
+          { key: "standard", label: "Toutes les stories", peakerrServiceId: 10564, min: 100, max: 500000, pricePer1000Xof: 500, eta: "0-1h", refill: "Non" },
+        ],
+      },
+      {
+        key: "commentaires",
+        label: "Commentaires",
+        linkHint: "Lien de la PUBLICATION Instagram",
+        tiers: [
+          { key: "standard", label: "100% réels · aléatoires", peakerrServiceId: 29484, min: 50, max: 10000, pricePer1000Xof: 2500, eta: "0-1h", refill: "Non" },
+        ],
+      },
     ],
   },
   {
@@ -98,10 +130,18 @@ export const BOOST_CATALOG: BoostNetwork[] = [
     services: [
       {
         key: "followers",
-        label: "Abonnés Page",
+        label: "Abonnés de page",
         linkHint: "Lien de ta PAGE Facebook",
         tiers: [
           { key: "standard", label: "Faible perte · recharge 90 j", peakerrServiceId: 29813, min: 10, max: 1000000, pricePer1000Xof: 3500, eta: "0-1h", refill: "90 jours" },
+        ],
+      },
+      {
+        key: "profil",
+        label: "Abonnés de profil",
+        linkHint: "Lien de ton PROFIL Facebook",
+        tiers: [
+          { key: "standard", label: "Haute qualité · réels · monde", peakerrServiceId: 32262, min: 10, max: 500000, pricePer1000Xof: 3500, eta: "0-1h", refill: "Non" },
         ],
       },
       {
@@ -110,6 +150,38 @@ export const BOOST_CATALOG: BoostNetwork[] = [
         linkHint: "Lien de la PUBLICATION Facebook",
         tiers: [
           { key: "standard", label: "Haute qualité · recharge", peakerrServiceId: 29580, min: 10, max: 1000000, pricePer1000Xof: 4000, eta: "0-1h", refill: "Oui" },
+        ],
+      },
+      {
+        key: "reactions",
+        label: "Réactions (emoji)",
+        linkHint: "Lien de la PUBLICATION Facebook",
+        tiers: [
+          { key: "standard", label: "J'aime / J'adore", peakerrServiceId: 32256, min: 10, max: 500000, pricePer1000Xof: 1500, eta: "0-30 min", refill: "Non" },
+        ],
+      },
+      {
+        key: "group",
+        label: "Membres de groupe",
+        linkHint: "Lien de ton GROUPE Facebook",
+        tiers: [
+          { key: "standard", label: "Haute qualité · réels · faible perte", peakerrServiceId: 33440, min: 10, max: 50000, pricePer1000Xof: 3500, eta: "0-1h", refill: "Non" },
+        ],
+      },
+      {
+        key: "vues",
+        label: "Vues vidéo / Reel",
+        linkHint: "Lien de la VIDÉO / du REEL Facebook",
+        tiers: [
+          { key: "standard", label: "Sans chute · à vie", peakerrServiceId: 29450, min: 100, max: 1000000, pricePer1000Xof: 700, eta: "0-1h", refill: "À vie" },
+        ],
+      },
+      {
+        key: "commentaires",
+        label: "Commentaires",
+        linkHint: "Lien de la PUBLICATION Facebook",
+        tiers: [
+          { key: "standard", label: "Aléatoires", peakerrServiceId: 33700, min: 10, max: 100000, pricePer1000Xof: 2500, eta: "0-1h", refill: "Non" },
         ],
       },
     ],
@@ -124,7 +196,7 @@ export const BOOST_CATALOG: BoostNetwork[] = [
         label: "Membres (canal/groupe)",
         linkHint: "Lien de ton CANAL ou GROUPE Telegram",
         tiers: [
-          { key: "standard", label: "Haute qualité · recharge 30 j", peakerrServiceId: 31210, min: 20, max: 1000000, pricePer1000Xof: 2500, eta: "0-1h", refill: "30 jours" },
+          { key: "standard", label: "Recharge 30 j · rapide", peakerrServiceId: 31029, min: 10, max: 500000, pricePer1000Xof: 2500, eta: "0-1h", refill: "30 jours" },
         ],
       },
       {
@@ -141,6 +213,14 @@ export const BOOST_CATALOG: BoostNetwork[] = [
         linkHint: "Lien du POST Telegram",
         tiers: [
           { key: "standard", label: "Premium", peakerrServiceId: 15396, min: 20, max: 100000, pricePer1000Xof: 1500, eta: "Instantané", refill: "Non" },
+        ],
+      },
+      {
+        key: "partages",
+        label: "Partages de post",
+        linkHint: "Lien du POST Telegram",
+        tiers: [
+          { key: "standard", label: "Réels", peakerrServiceId: 16052, min: 10, max: 100000, pricePer1000Xof: 1000, eta: "0-1h", refill: "Non" },
         ],
       },
     ],
@@ -172,6 +252,14 @@ export const BOOST_CATALOG: BoostNetwork[] = [
         linkHint: "Lien de la VIDÉO YouTube",
         tiers: [
           { key: "standard", label: "Sans chute · recharge 30 j", peakerrServiceId: 32112, min: 20, max: 100000, pricePer1000Xof: 3500, eta: "0-1h", refill: "30 jours" },
+        ],
+      },
+      {
+        key: "commentaires",
+        label: "Commentaires",
+        linkHint: "Lien de la VIDÉO YouTube",
+        tiers: [
+          { key: "standard", label: "Personnalisés · sans chute", peakerrServiceId: 32839, min: 10, max: 100000, pricePer1000Xof: 3500, eta: "0-1h", refill: "Non" },
         ],
       },
     ],
