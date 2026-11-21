@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { VerifyBanner } from "@/components/verify-banner";
-import { getRentServiceList } from "@/lib/rentals";
+import { getRentServiceList, RENTALS_ENABLED } from "@/lib/rentals";
 import { formatXof } from "@/lib/pricing";
 import { BuyWizard } from "./buy-wizard";
 import { BuySkeleton } from "./buy-skeleton";
@@ -20,7 +20,13 @@ export const maxDuration = 60;
  */
 async function ServicePicker({ userBalance }: { userBalance: number }) {
   const services = await getRentServiceList();
-  return <BuyWizard services={services} userBalance={userBalance} />;
+  return (
+    <BuyWizard
+      services={services}
+      userBalance={userBalance}
+      rentalsEnabled={RENTALS_ENABLED}
+    />
+  );
 }
 
 export default async function BuyPage() {
@@ -34,7 +40,9 @@ export default async function BuyPage() {
             Acheter un numéro
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Choisissez le service, le pays, puis validez.
+            {RENTALS_ENABLED
+              ? "Choisissez le service, le pays, la durée, puis validez."
+              : "Choisissez le service, le pays, puis validez."}
           </p>
         </div>
         {/* tabular-nums : le montant ne fait plus sauter la ligne quand il change. */}

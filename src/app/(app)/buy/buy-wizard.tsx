@@ -7,6 +7,7 @@ import { ButtonLink } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { formatXof } from "@/lib/pricing";
 import { purchaseAction } from "@/app/(app)/actions";
+import { rentAction } from "@/app/(app)/location/actions";
 
 type Svc = { code: string; name: string; featured: boolean };
 type Country = {
@@ -29,6 +30,22 @@ type Price = {
   rentalAvailable?: boolean;
   suggestDuration?: number;
 };
+
+/**
+ * Durées proposées au client, dans un seul écran (comme les concurrents).
+ *   0  -> code unique (~20 min), produit « activation » (marge par palier).
+ *   >0 -> location d'un numéro DÉDIÉ en heures HeroSMS (marge fixe +5000 F).
+ * Le prix de chaque durée (marge comprise) est recalculé côté serveur par
+ * /api/buy/price, donc choisir une durée n'enlève jamais le bénéfice.
+ */
+const DURATIONS = [
+  { hours: 0, label: "20 min" },
+  { hours: 24, label: "1 jour" },
+  { hours: 72, label: "3 jours" },
+  { hours: 168, label: "7 jours" },
+  { hours: 336, label: "14 jours" },
+  { hours: 720, label: "30 jours" },
+] as const;
 
 
 /* ─────────────── Icônes (SVG : jamais d'emoji comme icône) ─────────────── */
@@ -271,9 +288,12 @@ function ChosenRow({
 export function BuyWizard({
   services,
   userBalance,
+  rentalsEnabled,
 }: {
   services: Svc[];
   userBalance: number;
+  /** La location (1 à 30 j) n'est proposée que si HeroSMS est le fournisseur. */
+  rentalsEnabled: boolean;
 }) {
   const uid = useId();
   const [service, setService] = useState<Svc | null>(null);
@@ -395,6 +415,10 @@ export function BuyWizard({
 
   // Étape 3 — options + prix
   const [verify, setVerify] = useState<"SMS" | "CALL">("SMS");
+  // Durée choisie : 0 = code unique (20 min), sinon heures de location.
+  const [durationHours, setDurationHours] = useState(0);
+  const durLabel = (h: number) =>
+    DURATIONS.find((d) => d.hours === h)?.label ?? `${Math.round(h / 24)} j`;
   const [price, setPrice] = useState<Price | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
 
@@ -404,7 +428,7 @@ export function BuyWizard({
     setPriceLoading(true);
     let alive = true;
     fetch(
-      `/api/buy/price?service=${encodeURIComponent(service.code)}&country=${encodeURIComponent(country.code)}&duration=0`,
+      `/api/buy/price?service=${encodeURIComponent(service.code)}&country=${encodeURIComponent(country.code)}&duration=${durationHours}`,
       { cache: "no-store" },
     )
       .then((r) => r.json())
@@ -414,7 +438,7 @@ export function BuyWizard({
     return () => {
       alive = false;
     };
-  }, [service, country]);
+  }, [service, country, durationHours]);
 
   const chooseService = (s: Svc) => {
     setService(s);
@@ -646,9 +670,58 @@ export function BuyWizard({
             <WhatsAppGuide countryName={country.name} />
           )}
 
-          {/* Type de vérification — vrai groupe de boutons radio.
+          {/* Durée — code unique (20 min) ou location d'un numéro dédié.
+              Le prix de chaque durée (marge comprise) est recalculé par l'API
+              à la sélection : choisir une durée n'enlève jamais le bénéfice. */}
+          {rentalsEnabled && (
+            <fieldset>
+              <legend className="mb-1.5 text-xs font-medium text-muted">
+                Durée
+              </legend>
+              <div
+                role="radiogroup"
+                aria-label="Durée du numéro"
+                className="grid grid-cols-3 gap-2 sm:grid-cols-6"
+              >
+                {DURATIONS.map((d) => {
+                  const on = durationHours === d.hours;
+                  return (
+                    <button
+                      key={d.hours}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => setDurationHours(d.hours)}
+                      className={`flex min-h-11 flex-col items-center justify-center rounded-xl border-2 px-2 py-1.5 text-center transition-colors active:scale-[0.98] ${
+                        on
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                    >
+                      <span className="text-sm font-semibold leading-tight">
+                        {d.label}
+                      </span>
+                      <span className="text-[10px] leading-tight text-muted">
+                        {d.hours === 0 ? "Code unique" : "Dédié"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {durationHours > 0 && (
+                <p className="mt-1.5 px-1 text-xs text-muted">
+                  Numéro <strong>rien qu&apos;à vous</strong>, qui reçoit
+                  plusieurs SMS pendant toute la durée.
+                </p>
+              )}
+            </fieldset>
+          )}
+
+          {/* Type de vérification — seulement pour le code unique (20 min).
               Le FlashCall est un produit distinct chez HeroSMS : le choix
-              descend jusqu'au fournisseur, il ne reste pas décoratif. */}
+              descend jusqu'au fournisseur, il ne reste pas décoratif. Une
+              location reçoit plusieurs SMS : le choix SMS/Appel n'a pas lieu. */}
+          {durationHours === 0 && (
           <fieldset>
             <legend className="mb-1.5 text-xs font-medium text-muted">
               Recevoir le code par
@@ -701,6 +774,7 @@ export function BuyWizard({
               </p>
             )}
           </fieldset>
+          )}
 
           {/* ── Prix + action ── */}
           <div className="rounded-2xl border border-border bg-background p-4">
@@ -727,7 +801,9 @@ export function BuyWizard({
                     </span>
                   </p>
                   <p className="text-xs text-muted">
-                    Essayez un autre pays pour ce service.
+                    {rentalsEnabled
+                      ? "Choisissez une durée ci-dessus (1 jour et plus) pour un numéro dédié, ou essayez un autre pays."
+                      : "Essayez un autre pays pour ce service."}
                   </p>
                 </div>
               ) : (
@@ -744,8 +820,9 @@ export function BuyWizard({
                       {formatXof(price.priceXof!)}
                     </p>
                     <p className="text-xs text-muted">
-                      Code unique ·{" "}
-                      {verify === "CALL" ? "reçu par appel" : "reçu par SMS"}
+                      {durationHours === 0
+                        ? `Code unique · ${verify === "CALL" ? "reçu par appel" : "reçu par SMS"}`
+                        : `${durLabel(durationHours)} · numéro dédié, plusieurs SMS`}
                     </p>
                   </div>
                   <p className="text-right text-xs text-muted">
@@ -757,7 +834,8 @@ export function BuyWizard({
                 </div>
 
                 {affordable ? (
-                  <form action={purchaseAction}>
+                  durationHours === 0 ? (
+                    <form action={purchaseAction}>
                       <input
                         type="hidden"
                         name="service"
@@ -778,6 +856,33 @@ export function BuyWizard({
                         Acheter ce numéro
                       </SubmitButton>
                     </form>
+                  ) : (
+                    <form action={rentAction}>
+                      <input
+                        type="hidden"
+                        name="service"
+                        value={service.code}
+                      />
+                      <input
+                        type="hidden"
+                        name="country"
+                        value={country.code}
+                      />
+                      <input
+                        type="hidden"
+                        name="duration"
+                        value={durationHours}
+                      />
+                      <SubmitButton
+                        variant="accent"
+                        size="lg"
+                        className="w-full"
+                        pendingLabel="Location en cours…"
+                      >
+                        Louer ce numéro
+                      </SubmitButton>
+                    </form>
+                  )
                 ) : (
                   <div className="space-y-2" role="alert">
                     <p className="flex items-center gap-2 text-sm font-medium text-warning">
