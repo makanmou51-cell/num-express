@@ -845,7 +845,7 @@ export function BuyWizard({
                 <p className="rounded-lg bg-background/60 px-1 text-xs leading-relaxed text-muted">
                   {durationHours === 0
                     ? `Si le code n'est pas reçu, vous êtes remboursé automatiquement sur votre solde au bout de ${activationRefundMin} minutes.`
-                    : `Vous pouvez annuler et être remboursé dans les ${rentRefundMin} minutes si aucun code n'est reçu. Passé ce délai, le numéro reste à vous pour toute la durée achetée.`}
+                    : `Vous pouvez annuler et être remboursé dans les ${rentRefundMin} minutes si aucun code n'est reçu. Passé ce délai, aucun remboursement ne sera fait — mais le numéro reste à vous pour toute la durée achetée.`}
                 </p>
 
                 {affordable ? (
