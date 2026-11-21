@@ -425,26 +425,50 @@ export function BuyWizard({
   const [durationHours, setDurationHours] = useState(0);
   const durLabel = (h: number) =>
     DURATIONS.find((d) => d.hours === h)?.label ?? `${Math.round(h / 24)} j`;
-  const [price, setPrice] = useState<Price | null>(null);
+  /** Prix compact pour les pastilles de durée (ex. « 5 300 F »). */
+  const fmtF = (x: number) =>
+    `${new Intl.NumberFormat("fr-FR").format(Math.round(x))} F`;
+
+  /**
+   * Prix de TOUTES les durées en une seule requête (le serveur interroge le
+   * fournisseur en parallèle). On les charge une fois le pays choisi, puis
+   * changer de durée est INSTANTANÉ : on lit la carte au lieu de rappeler le
+   * réseau. Chaque prix inclut déjà la marge (calcul côté /api/buy/prices).
+   */
+  const [prices, setPrices] = useState<Record<number, Price> | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
 
   useEffect(() => {
     if (!service || !country) return;
-    setPrice(null);
+    setPrices(null);
     setPriceLoading(true);
     let alive = true;
     fetch(
-      `/api/buy/price?service=${encodeURIComponent(service.code)}&country=${encodeURIComponent(country.code)}&duration=${durationHours}`,
+      `/api/buy/prices?service=${encodeURIComponent(service.code)}&country=${encodeURIComponent(country.code)}`,
       { cache: "no-store" },
     )
       .then((r) => r.json())
-      .then((d) => alive && setPrice(d))
-      .catch(() => alive && setPrice({ available: false }))
+      .then((d) => {
+        if (!alive) return;
+        const map: Record<number, Price> = {};
+        for (const it of (d.durations ?? []) as (Price & {
+          hours: number;
+        })[]) {
+          map[it.hours] = it;
+        }
+        setPrices(map);
+      })
+      .catch(() => alive && setPrices({}))
       .finally(() => alive && setPriceLoading(false));
     return () => {
       alive = false;
     };
-  }, [service, country, durationHours]);
+  }, [service, country]);
+
+  // Prix de la durée choisie (dérivé de la carte, sans nouvel appel réseau).
+  const price: Price | null = prices
+    ? (prices[durationHours] ?? { available: false })
+    : null;
 
   const chooseService = (s: Svc) => {
     setService(s);
@@ -691,6 +715,19 @@ export function BuyWizard({
               >
                 {DURATIONS.map((d) => {
                   const on = durationHours === d.hours;
+                  const p = prices?.[d.hours];
+                  // Sous-ligne de la pastille : prix réel (marge comprise) dès
+                  // qu'il est chargé, sinon le type, « … » pendant le chargement.
+                  const sub = priceLoading
+                    ? "…"
+                    : p
+                      ? p.available && p.priceXof != null
+                        ? fmtF(p.priceXof)
+                        : "indispo"
+                      : d.hours === 0
+                        ? "Code unique"
+                        : "Dédié";
+                  const unavailable = Boolean(p && !p.available);
                   return (
                     <button
                       key={d.hours}
@@ -701,14 +738,16 @@ export function BuyWizard({
                       className={`flex min-h-11 flex-col items-center justify-center rounded-xl border-2 px-2 py-1.5 text-center transition-colors active:scale-[0.98] ${
                         on
                           ? "border-primary bg-primary/10 text-primary"
-                          : "border-border hover:border-primary/50"
+                          : unavailable
+                            ? "border-border opacity-60 hover:border-primary/50"
+                            : "border-border hover:border-primary/50"
                       }`}
                     >
                       <span className="text-sm font-semibold leading-tight">
                         {d.label}
                       </span>
-                      <span className="text-[10px] leading-tight text-muted">
-                        {d.hours === 0 ? "Code unique" : "Dédié"}
+                      <span className="text-[10px] leading-tight tabular-nums text-muted">
+                        {sub}
                       </span>
                     </button>
                   );
