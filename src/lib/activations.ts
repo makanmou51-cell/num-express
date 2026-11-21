@@ -35,7 +35,7 @@ import type { Activation } from "@/generated/prisma/client";
 
 // Doit refléter le délai RÉEL du fournisseur actif : afficher plus long
 // ferait patienter le client sur un numéro déjà libéré côté fournisseur.
-const ACTIVATION_TTL_MIN =
+export const ACTIVATION_TTL_MIN =
   env.activationTtlMin > 0
     ? env.activationTtlMin
     : usingOnlineSim || usingSms1001

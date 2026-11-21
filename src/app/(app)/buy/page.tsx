@@ -4,7 +4,12 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { VerifyBanner } from "@/components/verify-banner";
-import { getRentServiceList, RENTALS_ENABLED } from "@/lib/rentals";
+import {
+  getRentServiceList,
+  RENTALS_ENABLED,
+  RENT_REFUND_WINDOW_MIN,
+} from "@/lib/rentals";
+import { ACTIVATION_TTL_MIN } from "@/lib/activations";
 import { formatXof } from "@/lib/pricing";
 import { BuyWizard } from "./buy-wizard";
 import { BuySkeleton } from "./buy-skeleton";
@@ -25,6 +30,8 @@ async function ServicePicker({ userBalance }: { userBalance: number }) {
       services={services}
       userBalance={userBalance}
       rentalsEnabled={RENTALS_ENABLED}
+      activationRefundMin={ACTIVATION_TTL_MIN}
+      rentRefundMin={RENT_REFUND_WINDOW_MIN}
     />
   );
 }

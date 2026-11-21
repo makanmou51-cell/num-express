@@ -289,11 +289,17 @@ export function BuyWizard({
   services,
   userBalance,
   rentalsEnabled,
+  activationRefundMin,
+  rentRefundMin,
 }: {
   services: Svc[];
   userBalance: number;
   /** La location (1 à 30 j) n'est proposée que si HeroSMS est le fournisseur. */
   rentalsEnabled: boolean;
+  /** Minutes avant remboursement auto d'un code unique sans SMS (TTL réel). */
+  activationRefundMin: number;
+  /** Minutes pendant lesquelles une location est annulable/remboursable. */
+  rentRefundMin: number;
 }) {
   const uid = useId();
   const [service, setService] = useState<Svc | null>(null);
@@ -832,6 +838,15 @@ export function BuyWizard({
                     </span>
                   </p>
                 </div>
+
+                {/* Note rassurante sous le prix (comme les concurrents), mais
+                    avec NOS vrais délais : 20 min côté HeroSMS. Promettre plus
+                    long nous ferait rembourser de notre poche. */}
+                <p className="rounded-lg bg-background/60 px-1 text-xs leading-relaxed text-muted">
+                  {durationHours === 0
+                    ? `Si le code n'est pas reçu, vous êtes remboursé automatiquement sur votre solde au bout de ${activationRefundMin} minutes.`
+                    : `Vous pouvez annuler et être remboursé dans les ${rentRefundMin} minutes si aucun code n'est reçu. Passé ce délai, le numéro reste à vous pour toute la durée achetée.`}
+                </p>
 
                 {affordable ? (
                   durationHours === 0 ? (

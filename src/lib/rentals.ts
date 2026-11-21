@@ -26,6 +26,13 @@ export function isValidDuration(h: number): boolean {
   return RENT_DURATIONS.some((d) => d.hours === h);
 }
 
+/**
+ * Fenêtre d'annulation REMBOURSÉE d'une location, en minutes. Miroir d'affichage
+ * de `MAX_CANCEL_MS` (20 min) dans `cancelRental` : au-delà, HeroSMS ne rembourse
+ * plus, donc nous non plus — mais le numéro reste au client toute la durée.
+ */
+export const RENT_REFUND_WINDOW_MIN = 20;
+
 export function durationLabel(h: number): string {
   return (
     RENT_DURATIONS.find((d) => d.hours === h)?.label ??
