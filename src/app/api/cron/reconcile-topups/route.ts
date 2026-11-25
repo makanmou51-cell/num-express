@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { env } from "@/lib/env";
+import { checkCronAuth } from "@/lib/cron-auth";
 import { sweepPendingTopups } from "@/lib/payments";
 
 export const runtime = "nodejs";
@@ -13,28 +13,18 @@ export const maxDuration = 300;
  * Appelable aussi à la main pour forcer un balayage immédiat.
  */
 async function handle(req: Request) {
-  if (!env.cronSecret) {
+  const auth = checkCronAuth(req);
+  if (auth === "unconfigured") {
     return NextResponse.json(
       { error: "CRON_SECRET non configuré." },
       { status: 503 },
     );
   }
-
-  const url = new URL(req.url);
-  // Vercel Cron ajoute automatiquement `Authorization: Bearer <CRON_SECRET>`.
-  const auth = req.headers.get("authorization") ?? "";
-  const bearer = auth.toLowerCase().startsWith("bearer ")
-    ? auth.slice(7).trim()
-    : "";
-  const provided =
-    bearer ||
-    req.headers.get("x-cron-secret") ||
-    url.searchParams.get("secret") ||
-    "";
-  if (provided !== env.cronSecret) {
+  if (auth === "unauthorized") {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 
+  const url = new URL(req.url);
   const limitRaw = Number(url.searchParams.get("limit") ?? 150);
   const limit = Number.isFinite(limitRaw)
     ? Math.min(500, Math.max(1, Math.floor(limitRaw)))

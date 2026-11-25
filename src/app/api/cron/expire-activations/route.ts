@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { env } from "@/lib/env";
+import { checkCronAuth } from "@/lib/cron-auth";
 import { expireStaleActivations } from "@/lib/activations";
 import { resumePendingBroadcast } from "@/lib/broadcast";
 import { sweepPendingBoosts } from "@/lib/boost/orders";
@@ -14,25 +14,14 @@ export const maxDuration = 60;
  * À planifier (Vercel Cron, GitHub Actions, cron système…), ex. toutes les 5 min.
  */
 async function handle(req: Request) {
-  if (!env.cronSecret) {
+  const auth = checkCronAuth(req);
+  if (auth === "unconfigured") {
     return NextResponse.json(
       { error: "CRON_SECRET non configuré." },
       { status: 503 },
     );
   }
-
-  const url = new URL(req.url);
-  // Vercel Cron ajoute automatiquement `Authorization: Bearer <CRON_SECRET>`.
-  const auth = req.headers.get("authorization") ?? "";
-  const bearer = auth.toLowerCase().startsWith("bearer ")
-    ? auth.slice(7).trim()
-    : "";
-  const provided =
-    bearer ||
-    req.headers.get("x-cron-secret") ||
-    url.searchParams.get("secret") ||
-    "";
-  if (provided !== env.cronSecret) {
+  if (auth === "unauthorized") {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 

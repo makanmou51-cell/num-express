@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { prisma } from "@/lib/db";
 import { applyWalletTx } from "@/lib/wallet";
 import { getSettings } from "@/lib/settings";
+import { env } from "@/lib/env";
 
 // Alphabet sans caractères ambigus (I, O, 0, 1).
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -103,6 +104,21 @@ export async function grantReferralWelcomeBonus(userId: string): Promise<void> {
     select: { id: true },
   });
   if (already) return;
+
+  /* Garde-fou anti multi-comptes (Sybil). On ne verse le bonus qu'une fois que
+     le filleul a CUMULÉ assez de recharges réelles pour que créer un faux
+     compte ne soit jamais rentable (seuil > montant du bonus). Sans lui, un
+     bonus de 250 F débloqué dès 200 F de recharge finançait le farming :
+     chaque faux compte rapportait du crédit net. Ce code tourne après CHAQUE
+     recharge créditée, donc le bonus part dès que le cumul franchit le seuil. */
+  const minTopup = env.affiliate.welcomeBonusMinTopupXof;
+  if (minTopup > 0) {
+    const agg = await prisma.transaction.aggregate({
+      where: { userId, type: "TOPUP", status: "COMPLETED" },
+      _sum: { amount: true },
+    });
+    if ((agg._sum.amount ?? 0) < minTopup) return; // pas encore assez rechargé
+  }
 
   try {
     await applyWalletTx({

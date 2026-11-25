@@ -180,6 +180,11 @@ export const env = {
     // Bonus de bienvenue versé au FILLEUL à sa 1re recharge (0 = désactivé).
     // Petit par défaut : la marge est ~4 000 F/vente, un bonus trop gros la mange.
     welcomeBonusXof: num("AFFILIATE_WELCOME_BONUS_XOF", 250),
+    // Cumul minimum de recharges CRÉDITÉES avant de verser le bonus filleul.
+    // Doit rester > welcomeBonusXof pour qu'un faux compte ne soit jamais
+    // rentable : il faut verser plus d'argent réel que le bonus pour l'obtenir
+    // (garde-fou anti multi-comptes / Sybil). 0 = verser dès la 1re recharge.
+    welcomeBonusMinTopupXof: num("AFFILIATE_WELCOME_BONUS_MIN_TOPUP_XOF", 1000),
   },
 
   // ── E-mail ──
