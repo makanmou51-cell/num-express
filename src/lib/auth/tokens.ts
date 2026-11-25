@@ -40,10 +40,16 @@ export async function consumeToken(
   ) {
     return null;
   }
-  await prisma.verificationToken.update({
-    where: { id: row.id },
+  /* Revendication ATOMIQUE (compare-and-swap sur consumedAt). Le « lire puis
+     écrire » précédent laissait deux appels concurrents (double-clic, deux
+     onglets, rejeu) passer tous deux le test `!row.consumedAt` avant que l'un
+     n'écrive — le jeton à usage unique pouvait alors servir deux fois. Ici,
+     seul le premier appelant qui voit `consumedAt: null` obtient count === 1. */
+  const claim = await prisma.verificationToken.updateMany({
+    where: { id: row.id, consumedAt: null },
     data: { consumedAt: new Date() },
   });
+  if (claim.count === 0) return null; // déjà consommé par un appel concurrent
   return row.userId;
 }
 
